@@ -1,0 +1,3 @@
+[submodule "CodexEcsUnityIntegration"]
+	path = CodexEcsUnityIntegration
+	url = https://github.com/AlexCheero/CodexEcsUnityIntegration.git
