@@ -1,6 +1,5 @@
 using CodexECS;
-using CodexFramework.EcsUnityIntegration.Views;
-using CodexFramework.Utils.Pools;
+using CodexFramework.CodexEcsUnityIntegration.Views;
 using Gameplay;
 using InstantGamesBridge;
 using System;

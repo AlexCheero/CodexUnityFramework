@@ -1,4 +1,4 @@
-﻿using CodexFramework.EcsUnityIntegration;
+﻿using CodexFramework.CodexEcsUnityIntegration;
 using CodexFramework.Gameplay.UI;
 using System.Collections;
 using UnityEngine;

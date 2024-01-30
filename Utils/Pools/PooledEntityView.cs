@@ -1,4 +1,4 @@
-using CodexFramework.EcsUnityIntegration.Views;
+using CodexFramework.CodexEcsUnityIntegration.Views;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
