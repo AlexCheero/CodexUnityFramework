@@ -1,0 +1,534 @@
+using CodexECS;
+using CodexFramework.EcsUnityIntegration.Views;
+using CodexFramework.Utils.Pools;
+using Gameplay;
+using InstantGamesBridge;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using TMPro;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+namespace CodexFramework.Utils
+{
+    [Serializable]
+    public struct Cortege<T1, T2>
+    {
+        public T1 item1;
+        public T2 item2;
+    }
+
+    static class IListExtensions
+    {
+        public static T GetRandomItem<T>(this IList<T> list)
+        {
+            return list[UnityEngine.Random.Range(0, list.Count)];
+        }
+
+        public delegate bool MergeSortComparator<T>(T a, T b);
+        public static void InPlaceMergeSort<T>(this IList<T> list, MergeSortComparator<T> comparator, int low = 0) =>
+            list.InPlaceMergeSort(comparator, low, list.Count - 1);
+        public static void InPlaceMergeSort<T>(this IList<T> list, MergeSortComparator<T> comparator, int low, int high)
+        {
+            if (low < high)
+            {
+                int middle = low + (high - low) / 2;
+
+                list.InPlaceMergeSort(comparator, low, middle);
+                list.InPlaceMergeSort(comparator, middle + 1, high);
+
+                list.Merge(comparator, low, middle, high);
+            }
+        }
+
+        public static void Merge<T>(this IList<T> list, MergeSortComparator<T> comparator, int low, int middle, int high)
+        {
+            int i = low;
+            int j = middle + 1;
+
+            while (i <= middle && j <= high)
+            {
+                if (comparator(list[j], list[i]))
+                {
+                    i++;
+                }
+                else
+                {
+                    var value = list[j];
+                    int index = j;
+
+                    // Shift all the elements between element i and j to the right by one.
+                    while (index != i)
+                    {
+                        list[index] = list[index - 1];
+                        index--;
+                    }
+                    list[i] = value;
+
+                    // Adjust the pointers
+                    i++;
+                    middle++;
+                    j++;
+                }
+            }
+        }
+    }
+
+    [Serializable]
+    public struct MyTuple<T1, T2>
+    {
+        public T1 Item1;
+        public T2 Item2;
+    }
+
+    [Serializable]
+    public struct WeightedValue<T>
+    {
+        public T Value;
+        public float Weight;
+    }
+
+    [Serializable]
+    public struct CountedValue<T>
+    {
+        public T Value;
+        public int Count;
+    }
+
+    public static class Utils
+    {
+        private static NavMeshPath _path;
+        public static bool CheckReachability(Vector3 from, Vector3 to)
+        {
+            _path ??= new();
+            _path.ClearCorners();
+            return NavMesh.CalculatePath(from, to, NavMesh.AllAreas, _path);
+        }
+
+        public static T GetRandomItem<T>(this IEnumerable<T> enumerable)
+        {
+            return enumerable.ElementAt(UnityEngine.Random.Range(0, enumerable.Count()));
+        }
+
+        public static void SkipTutorial()
+        {
+            var dh = DataHolder.Instance;
+            dh.IsTutorialCompleted = true;
+            dh.IsLobbyTutorialCompleted = true;
+            var secondWeapon = dh.StaticData.AllWeapons[1];
+            dh.AddCash(secondWeapon.Price);
+
+            //SceneHelper.LoadScene(Constants.LobbyScene);
+            SceneManager.LoadScene(Constants.LobbyScene);
+        }
+
+        public static void SetAlpha(this Image image, float alpha)
+        {
+            var color = image.color;
+            color.a = alpha;
+            image.color = color;
+        }
+
+        public static void SetAlpha(this SpriteRenderer spriteRenderer, float alpha)
+        {
+            var color = spriteRenderer.color;
+            color.a = alpha;
+            spriteRenderer.color = color;
+        }
+
+        public static void SetAlpha(this TextMeshProUGUI text, float alpha)
+        {
+            var color = text.color;
+            color.a = alpha;
+            text.color = color;
+        }
+
+        public static void SetAlpha(this Material material, float alpha)
+        {
+            var color = material.color;
+            color.a = alpha;
+            material.color = color;
+        }
+
+        public static int CycleAdvance(int value, int step, int max)
+        {
+            var result = value + step;
+            while (result < 0)
+                result = max + result;
+            result %= max;
+            return result;
+        }
+
+        public static bool IsRectOnTheLeft(RectTransform rect, RectTransform otherRect)
+        {
+            Vector3[] corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            Vector3[] otherCorners = new Vector3[4];
+            otherRect.GetWorldCorners(otherCorners);
+
+            return corners[2].x < otherCorners[0].x;
+        }
+
+        public static bool RectIntersects(RectTransform rectTransformA, RectTransform rectTransformB)
+        {
+            Vector3[] cornersA = new Vector3[4];
+            Vector3[] cornersB = new Vector3[4];
+            rectTransformA.GetWorldCorners(cornersA);
+            rectTransformB.GetWorldCorners(cornersB);
+
+            // Check for intersection
+            if (cornersA[2].x < cornersB[0].x || cornersA[0].x > cornersB[2].x)
+                return false;
+            if (cornersA[2].y < cornersB[0].y || cornersA[0].y > cornersB[2].y)
+                return false;
+
+            return true;
+        }
+
+        public static void SetScaleForMatrix(this ref Matrix4x4 matrix, Vector3 desiredScale)
+        {
+            // Normalize rotation columns
+            Vector3 right = matrix.GetColumn(0).normalized;
+            Vector3 up = matrix.GetColumn(1).normalized;
+            Vector3 forward = matrix.GetColumn(2).normalized;
+
+            // Scale them
+            matrix.SetColumn(0, right * desiredScale.x);
+            matrix.SetColumn(1, up * desiredScale.y);
+            matrix.SetColumn(2, forward * desiredScale.z);
+        }
+
+        public static Vector3 GetScaleFromMatrix(this Matrix4x4 matrix)
+        {
+            Vector3 scale;
+            scale.x = matrix.GetColumn(0).magnitude;
+            scale.y = matrix.GetColumn(1).magnitude;
+            scale.z = matrix.GetColumn(2).magnitude;
+
+            return scale;
+        }
+
+        public static Color LerpColors(Color color1, Color color2, float t) => new(
+                Mathf.Lerp(color1.r, color2.r, t),
+                Mathf.Lerp(color1.g, color2.g, t),
+                Mathf.Lerp(color1.b, color2.b, t),
+                Mathf.Lerp(color1.a, color2.a, t));
+
+        public static bool IsAbove(Transform viewerTransform, Vector3 targetPosition)
+        {
+            var vectorToTarget = targetPosition - viewerTransform.position;
+            return Vector3.Dot(vectorToTarget, viewerTransform.up) > 0;
+        }
+
+        public static bool IsOnTheRight(Transform viewerTransform, Vector3 targetPosition)
+        {
+            var vectorToTarget = targetPosition - viewerTransform.position;
+            var cross = Vector3.Cross(viewerTransform.forward, vectorToTarget);
+            return Vector3.Dot(cross, viewerTransform.up) > 0;
+        }
+
+        public static bool IsEnemyAlive(EntityView enemyView) =>
+            enemyView != null &&
+            enemyView.IsValid &&
+            !enemyView.Have<DeadComponent>() &&
+            enemyView.GetEcsComponent<HealthComponent>().health > 0;
+
+        public static string GetAnimatorParamNameByAttackAnimType(EAttackAnimType animType)
+        {
+            switch (animType)
+            {
+                case EAttackAnimType.Punching:
+                    return Constants.IsPunching;
+                case EAttackAnimType.Firing:
+                    return Constants.IsFiring;
+                case EAttackAnimType.Throwing:
+                    return Constants.IsThrowing;
+                case EAttackAnimType.Melee:
+                    return Constants.IsMelee;
+                default:
+                    return "";
+            }
+        }
+
+        public static Dictionary<T1, T2> TupleEnumerableToDict<T1, T2>(IEnumerable<MyTuple<T1, T2>> enumerable)
+        {
+            var dict = new Dictionary<T1, T2>();
+            foreach (var item in enumerable)
+                dict[item.Item1] = item.Item2;
+            return dict;
+        }
+
+        public static float GetAngleFrom0(float angle)
+        {
+            angle %= 360;
+            if (Mathf.Abs(angle) < 180)
+                return angle;
+
+            return angle - Mathf.Sign(angle) * 360;
+        }
+
+        private static RaycastHit[] _castBuffer = new RaycastHit[32];
+        public static (RaycastHit[], int) RayCastNonAlloc(
+            Ray ray,
+            float maxDistance,
+            int layerMask,
+            bool sort = false)
+        {
+            var num = Physics.RaycastNonAlloc(ray, _castBuffer, maxDistance, layerMask);
+            if (sort)
+                _castBuffer.InPlaceMergeSort((r1, r2) => r1.distance > r2.distance, 0, num - 1);
+            return (_castBuffer, num);
+        }
+
+        public static (RaycastHit[], int) RayCastNonAlloc(
+            Vector3 origin,
+            Vector3 direction,
+            float maxDistance,
+            int layerMask,
+            bool sort = false)
+        {
+            var num = Physics.RaycastNonAlloc(origin, direction, _castBuffer, maxDistance, layerMask);
+            if (sort)
+                _castBuffer.InPlaceMergeSort((r1, r2) => r1.distance > r2.distance, 0, num - 1);
+            return (_castBuffer, num);
+        }
+
+        public static (RaycastHit[], int) SphereCastNonAlloc(
+            Ray ray,
+            float radius,
+            float maxDistance,
+            int layerMask) => SphereCastNonAlloc(ray.origin, radius, ray.direction, maxDistance, layerMask);
+        public static (RaycastHit[], int) SphereCastNonAlloc(
+            Vector3 origin,
+            float radius,
+            Vector3 direction,
+            float maxDistance,
+            int layerMask) =>
+            (_castBuffer, Physics.SphereCastNonAlloc(origin, radius, direction, _castBuffer, maxDistance, layerMask));
+
+        private static readonly Collider[] _overlapBuffer = new Collider[32];
+        public static (Collider[], int) OverlapSphereNonAlloc(Vector3 position, float radius, int layerMask) =>
+            (_overlapBuffer, Physics.OverlapSphereNonAlloc(position, radius, _overlapBuffer, layerMask));
+
+        public static bool GetTouchPosition(out Vector3 position)
+        {
+            position = Vector3.zero;
+            if (Bridge.device.type == InstantGamesBridge.Modules.Device.DeviceType.Desktop)
+            {
+                if (Input.GetMouseButtonDown(0))
+                {
+                    position = Input.mousePosition;
+                    return true;
+                }
+            }
+            else
+            {
+                if (Input.touchCount > 0)
+                {
+                    var touch = Input.GetTouch(0);
+                    if (touch.phase != TouchPhase.Began)
+                        return false;
+                    position = Input.GetTouch(0).position;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static int FindClosestBiggerPowerOfTwo(int n)
+        {
+            int power = 1;
+            while (power < n)
+                power <<= 1;
+            return power;
+        }
+
+        public static T GetRandomObjectByWeight<T>(IEnumerable<WeightedValue<T>> weightedObjects)
+        {
+            var totalSum = 0f;
+            foreach (var x in weightedObjects)
+                totalSum += x.Weight;
+            var random = UnityEngine.Random.Range(0f, totalSum);
+            foreach (var variant in weightedObjects)
+            {
+                if (random < variant.Weight)
+                    return variant.Value;
+                random -= variant.Weight;
+            }
+
+            Debug.LogError("This should never happen");
+            return weightedObjects.First().Value;
+        }
+
+        public static EntityView GetPooledEntityView(
+            PooledEntityView prototype,
+            int initialCapacity,
+            EcsWorld world,
+            Action<PoolItem> onGet = null,
+            Action<PoolItem> onReturn = null)
+        {
+            var pool = PoolManager.Instance.GetByPrototype(prototype, initialCapacity, onGet, onReturn);
+            var view = pool.Get().GetComponentAndCache<EntityView>();
+            view.InitAsEntity(world);
+            return view;
+        }
+
+        public static EntityView GetPooledEntityView(
+            PooledEntityView prototype,
+            int initialCapacity,
+            EcsWorld world,
+            Vector3 position,
+            Action<PoolItem> onGet = null,
+            Action<PoolItem> onReturn = null)
+        {
+            var pool = PoolManager.Instance.GetByPrototype(prototype, initialCapacity, onGet, onReturn);
+            var view = pool.Get(position).GetComponentAndCache<EntityView>();
+            view.InitAsEntity(world);
+            return view;
+        }
+
+        public static EntityView GetPooledEntityView(
+            PooledEntityView prototype,
+            int initialCapacity,
+            EcsWorld world,
+            Vector3 position,
+            Quaternion rotation,
+            Action<PoolItem> onGet = null,
+            Action<PoolItem> onReturn = null)
+        {
+            var pool = PoolManager.Instance.GetByPrototype(prototype, initialCapacity, onGet, onReturn);
+            var view = pool.Get(position, rotation).GetComponentAndCache<EntityView>();
+            view.InitAsEntity(world);
+            return view;
+        }
+
+        public static Mesh BakeMesh(
+            SkinnedMeshRenderer[] skins,
+            MeshFilter[] meshes,
+            Vector3 scale,
+            bool mergeMeshes,
+            bool optimize)
+        {
+            if (skins == null || skins.Length == 0)
+            {
+                Debug.LogError("skin is null!!");
+                return null;
+            }
+
+            var invertedScale = new Vector3(1 / scale.x, 1 / scale.y, 1 / scale.z);
+            Matrix4x4 scaleMatrix = Matrix4x4.Scale(invertedScale);
+            var combine = new CombineInstance[skins.Length + meshes.Length];
+            for (int i = 0; i < skins.Length; i++)
+            {
+                SkinnedMeshRenderer skinnedMeshRenderer = skins[i];
+                var mesh = new Mesh();
+                skinnedMeshRenderer.BakeMesh(mesh, true);
+                if (optimize)
+                    mesh.Optimize();
+
+                combine[i].mesh = mesh;
+                combine[i].transform = scaleMatrix * skinnedMeshRenderer.transform.localToWorldMatrix;
+            }
+            for (int i = 0; i < meshes.Length; i++)
+            {
+                Mesh mesh = meshes[i].sharedMesh;
+                if (optimize)
+                    mesh.Optimize();
+
+                var combineIdx = i + skins.Length;
+                combine[combineIdx].mesh = mesh;
+                combine[combineIdx].transform = scaleMatrix * meshes[i].transform.localToWorldMatrix;
+            }
+            var combinedMesh = new Mesh();
+            combinedMesh.CombineMeshes(combine, mergeMeshes);
+
+            return combinedMesh;
+        }
+
+#if UNITY_EDITOR
+        [MenuItem("Utils/Clear PlayerPrefs", false, -1)]
+        private static void ClearPlayerPrefs() => PlayerPrefs.DeleteAll();
+
+        public static void GenerateFolderPaths(string FullPath)
+        {
+            string[] requiredFolders = FullPath.Split("/");
+            string path = string.Empty;
+            for (int i = 0; i < requiredFolders.Length; i++)
+            {
+                path += requiredFolders[i];
+                if (!AssetDatabase.IsValidFolder(path))
+                    System.IO.Directory.CreateDirectory(path);
+            }
+        }
+
+        public static void GenerateFolderPaths_AssetDatabase(string FullPath)
+        {
+            string[] requiredFolders = FullPath.Split("/");
+            string path = requiredFolders[0];
+            for (int i = 1; i < requiredFolders.Length; i++)
+            {
+                if (!AssetDatabase.IsValidFolder(path + requiredFolders[i]))
+                    AssetDatabase.CreateFolder(path, requiredFolders[i]);
+                path += requiredFolders[i];
+            }
+        }
+
+        // Sphere with radius of 1
+        private static readonly Vector4[] s_UnitSphere = MakeUnitSphere(16);
+
+        private static Vector4[] MakeUnitSphere(int len)
+        {
+            Debug.Assert(len > 2);
+            var v = new Vector4[len * 3];
+            for (int i = 0; i < len; i++)
+            {
+                var f = i / (float)len;
+                float c = Mathf.Cos(f * (float)(Mathf.PI * 2.0));
+                float s = Mathf.Sin(f * (float)(Mathf.PI * 2.0));
+                v[0 * len + i] = new Vector4(c, s, 0, 1);
+                v[1 * len + i] = new Vector4(0, c, s, 1);
+                v[2 * len + i] = new Vector4(s, 0, c, 1);
+            }
+            return v;
+        }
+
+        public static void DrawDebugSphere(Vector4 pos, float radius, Color color, float duration)
+        {
+            Vector4[] v = s_UnitSphere;
+            int len = s_UnitSphere.Length / 3;
+            for (int i = 0; i < len; i++)
+            {
+                var sX = pos + radius * v[0 * len + i];
+                var eX = pos + radius * v[0 * len + (i + 1) % len];
+                var sY = pos + radius * v[1 * len + i];
+                var eY = pos + radius * v[1 * len + (i + 1) % len];
+                var sZ = pos + radius * v[2 * len + i];
+                var eZ = pos + radius * v[2 * len + (i + 1) % len];
+                Debug.DrawLine(sX, eX, color, duration);
+                Debug.DrawLine(sY, eY, color, duration);
+                Debug.DrawLine(sZ, eZ, color, duration);
+            }
+        }
+#endif
+
+#if DEBUG
+        public static GameObject CreateDebugIndicatorObject(string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
+            => CreateDebugIndicatorObject(Color.cyan, name, primitive, scale);
+        public static GameObject CreateDebugIndicatorObject(Color color, string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
+        {
+            var indicator = GameObject.CreatePrimitive(primitive);
+            UnityEngine.Object.Destroy(indicator.GetComponent<Collider>());
+            indicator.transform.localScale = new Vector3(scale, scale, scale);
+            indicator.GetComponent<Renderer>().material.color = color;
+            indicator.name = name;
+
+            return indicator;
+        }
+#endif
+    }
+}
