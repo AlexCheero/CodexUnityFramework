@@ -84,9 +84,10 @@ namespace CodexFramework.Templates
             _userDataDict[Constants.SfxVolumeKey] = JsonConvert.SerializeObject(USettings.SfxVolume);
             #endregion
 
+            _userDataDict[Constants.VersionKey] = Application.version;
+
             var json = JsonConvert.SerializeObject(_userDataDict);
             PlayerPrefs.SetString(Constants.UserDataKey, json);
-            PlayerPrefs.SetString(Constants.VersionKey, Application.version);
         }
     }
 }

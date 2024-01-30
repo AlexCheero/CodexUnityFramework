@@ -1,7 +1,6 @@
 using CodexECS;
 using CodexFramework.CodexEcsUnityIntegration.Views;
-using Gameplay;
-using InstantGamesBridge;
+using CodexFramework.Utils.Pools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +8,6 @@ using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace CodexFramework.Utils
@@ -111,18 +109,6 @@ namespace CodexFramework.Utils
         public static T GetRandomItem<T>(this IEnumerable<T> enumerable)
         {
             return enumerable.ElementAt(UnityEngine.Random.Range(0, enumerable.Count()));
-        }
-
-        public static void SkipTutorial()
-        {
-            var dh = DataHolder.Instance;
-            dh.IsTutorialCompleted = true;
-            dh.IsLobbyTutorialCompleted = true;
-            var secondWeapon = dh.StaticData.AllWeapons[1];
-            dh.AddCash(secondWeapon.Price);
-
-            //SceneHelper.LoadScene(Constants.LobbyScene);
-            SceneManager.LoadScene(Constants.LobbyScene);
         }
 
         public static void SetAlpha(this Image image, float alpha)
@@ -230,29 +216,6 @@ namespace CodexFramework.Utils
             return Vector3.Dot(cross, viewerTransform.up) > 0;
         }
 
-        public static bool IsEnemyAlive(EntityView enemyView) =>
-            enemyView != null &&
-            enemyView.IsValid &&
-            !enemyView.Have<DeadComponent>() &&
-            enemyView.GetEcsComponent<HealthComponent>().health > 0;
-
-        public static string GetAnimatorParamNameByAttackAnimType(EAttackAnimType animType)
-        {
-            switch (animType)
-            {
-                case EAttackAnimType.Punching:
-                    return Constants.IsPunching;
-                case EAttackAnimType.Firing:
-                    return Constants.IsFiring;
-                case EAttackAnimType.Throwing:
-                    return Constants.IsThrowing;
-                case EAttackAnimType.Melee:
-                    return Constants.IsMelee;
-                default:
-                    return "";
-            }
-        }
-
         public static Dictionary<T1, T2> TupleEnumerableToDict<T1, T2>(IEnumerable<MyTuple<T1, T2>> enumerable)
         {
             var dict = new Dictionary<T1, T2>();
@@ -316,7 +279,10 @@ namespace CodexFramework.Utils
         public static bool GetTouchPosition(out Vector3 position)
         {
             position = Vector3.zero;
-            if (Bridge.device.type == InstantGamesBridge.Modules.Device.DeviceType.Desktop)
+
+            bool isDesktop = true;
+
+            if (isDesktop)
             {
                 if (Input.GetMouseButtonDown(0))
                 {

@@ -5,7 +5,7 @@ namespace CodexFramework.Utils.Collections
 {
     public class BucketedList<T>
     {
-        public const int BucketSize = Constants.MaxInstancedObjectsPerCall;
+        public const int BucketSize = /*Constants.MaxInstancedObjectsPerCall*/1023;
 
         public int Count { get; private set; }
 
