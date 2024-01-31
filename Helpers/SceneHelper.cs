@@ -14,10 +14,10 @@ namespace CodexFramework.Helpers
 
         public static void LoadScene(string name)
         {
-            AdsManager.Instance.ShowInter(() =>
-            {
-                CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime));
-            });
+            //AdsManager.Instance.ShowInter(() =>
+            //{
+            //    CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime));
+            //});
         }
 
         private static IEnumerator LoadSceneRoutine(string levelName, float minLoadTime)
