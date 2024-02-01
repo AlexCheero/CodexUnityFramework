@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using CodexFramework.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -51,7 +52,7 @@ namespace CodexFramework.Templates
             }
             _userDataDict ??= new Dictionary<string, string>();
 
-            //if (!_userDataDict.ContainsKey(ConstantsTemplate.VersionKey))
+            //if (ShouldWipe())
             //    Wipe();
 
             #region UserSettings
@@ -64,14 +65,39 @@ namespace CodexFramework.Templates
             #endregion
         }
 
+        private bool ShouldWipe()
+        {
+            if (!_userDataDict.ContainsKey(Constants.VersionKey))
+                return false;
+
+            var prevVersionNumbers = _userDataDict[Constants.VersionKey].Split('.');
+            var currentVersionNumbers = Application.version.Split('.');
+
+            if (prevVersionNumbers.Length != currentVersionNumbers.Length)
+            {
+                Debug.LogError("corrupted version string");
+                return false;
+            }
+
+            var isVersionLower = false;
+            for (int i = prevVersionNumbers.Length - 1; i >= 0; i--)
+            {
+                var strippedPrev = new string(prevVersionNumbers[i].Where(c => char.IsDigit(c)).ToArray());
+                var strippedCurr = new string(currentVersionNumbers[i].Where(c => char.IsDigit(c)).ToArray());
+                var prevNum = int.Parse(strippedPrev, CultureInfo.InvariantCulture);
+                var currNum = int.Parse(strippedCurr, CultureInfo.InvariantCulture);
+                if (prevNum < currNum)
+                {
+                    isVersionLower = true;
+                    break;
+                }
+            }
+
+            return isVersionLower;
+        }
+
         private void Wipe()
         {
-            var previousVersion = int.Parse(_userDataDict[Constants.VersionKey], CultureInfo.InvariantCulture);
-            var currentVersion = int.Parse(Application.version, CultureInfo.InvariantCulture);
-
-            if (previousVersion >= currentVersion)
-                return;
-
             _userDataDict.Clear();
             PlayerPrefs.DeleteAll();
         }
