@@ -14,6 +14,8 @@ namespace CodexFramework.Helpers
 
         public static void LoadScene(string name)
         {
+            CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime));
+
             //AdsManager.Instance.ShowInter(() =>
             //{
             //    CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime));
@@ -24,10 +26,8 @@ namespace CodexFramework.Helpers
         {
             if (ECSPipelineController.IsCreated)
                 ECSPipelineController.Instance.Pause();
-            LoadingScreen.ForceInit();
-            var loadingScreen = LoadingScreen.Instance;
-            if (loadingScreen != null)
-                loadingScreen.gameObject.SetActive(true);
+            if (LoadingScreen.IsCreated)
+                LoadingScreen.Instance.gameObject.SetActive(true);
 
             var asyncOp = SceneManager.LoadSceneAsync(levelName);
             asyncOp.allowSceneActivation = false;
