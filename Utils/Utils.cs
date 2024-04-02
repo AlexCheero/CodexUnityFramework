@@ -98,6 +98,31 @@ namespace CodexFramework.Utils
 
     public static class Utils
     {
+        public static bool GetTouchDownPosition(ref Vector3 position)
+        {
+            if (Input.mousePresent)
+            {
+                if (Input.GetMouseButtonDown(0))
+                {
+                    position = Input.mousePosition;
+                    return true;
+                }
+            }
+            else
+            {
+                if (Input.touchCount > 0)
+                {
+                    var touch = Input.GetTouch(0);
+                    if (touch.phase != TouchPhase.Began)
+                        return false;
+                    position = Input.GetTouch(0).position;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static void SetLayerRecursively(GameObject obj, int newLayer)
         {
             obj.layer = newLayer;
