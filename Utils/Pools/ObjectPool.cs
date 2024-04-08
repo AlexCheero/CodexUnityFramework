@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEditor;
 using UnityEngine;
 
@@ -17,6 +18,9 @@ namespace CodexFramework.Utils.Pools
         private PoolItem[] _objects;
         private int _firstAvailable = 0;
 
+        //TODO: turn into changable parameter
+        private int GrowPerFrame => 1;
+
         public GameObject PrototypeGO => _prototype.gameObject;
 
         public bool IsOnGetBinded => OnGetItem != null;
@@ -26,7 +30,7 @@ namespace CodexFramework.Utils.Pools
         {
             _initialCount = initialCount;
             _prototype = prototype;
-            Fix();
+            StartCoroutine(Fix(GrowPerFrame));
 
             if (onGet != null)
                 OnGetItem += onGet;
@@ -44,12 +48,12 @@ namespace CodexFramework.Utils.Pools
 
         private static void FixPool(ObjectPool pool)
         {
-            pool.Fix();
+            pool.InstantFix();
             EditorUtility.SetDirty(pool);
         }
 #endif
 
-        private void Fix()
+        private void PrepareToFix()
         {
             if (_initialCount == 0 || (_initialCount & _initialCount - 1) != 0)
                 Debug.LogError("pool " + name + " size should be power of two");
@@ -63,9 +67,29 @@ namespace CodexFramework.Utils.Pools
             }
 
             Array.Resize(ref _objects, _initialCount);
+        }
 
+        private void InstantFix()
+        {
+            PrepareToFix();
             for (int i = 0; i < _initialCount; i++)
                 AddNew(i);
+        }
+
+        private IEnumerator Fix(int growPerFrame)
+        {
+            PrepareToFix();
+            var addThisFrame = growPerFrame;
+            for (int i = 0; i < _initialCount; i++)
+            {
+                AddNew(i);
+                addThisFrame--;
+                if (addThisFrame == 0)
+                {
+                    addThisFrame = growPerFrame;
+                    yield return null;
+                }
+            }
         }
 
         public PoolItem Get()
@@ -75,8 +99,10 @@ namespace CodexFramework.Utils.Pools
                 throw new Exception("_firstAvailable can't be bigger than _objects.Length");
 #endif
             if (_firstAvailable == _objects.Length)
-                Grow();
+                StartCoroutine(GrowRoutine(GrowPerFrame));
 
+            if (_objects[_firstAvailable] == null)
+                AddNew(_firstAvailable);
             var item = _objects[_firstAvailable];
             item.gameObject.SetActive(true);
             _firstAvailable++;
@@ -98,7 +124,7 @@ namespace CodexFramework.Utils.Pools
             return retVal;
         }
 
-        private void Grow()
+        private void InstantGrow()
         {
             var newLength = _objects.Length << 1;
             Array.Resize(ref _objects, newLength);
@@ -110,6 +136,36 @@ namespace CodexFramework.Utils.Pools
                     throw new Exception("non null pool items after grow");
 #endif
                 AddNew(i);
+            }
+        }
+
+        private IEnumerator GrowRoutine(int growPerFrame)
+        {
+#if DEBUG
+            if (growPerFrame < 1)
+            {
+                Debug.LogError("should add at least one object per frame");
+                growPerFrame = 1;
+            }
+#endif
+
+            var newLength = _objects.Length << 1;
+            Array.Resize(ref _objects, newLength);
+
+            var addThisFrame = growPerFrame;
+            for (int i = _firstAvailable; i < _objects.Length; i++)
+            {
+#if DEBUG
+                if (_objects[i] != null)
+                    throw new Exception("non null pool items after grow");
+#endif
+                AddNew(i);
+                addThisFrame--;
+                if (addThisFrame == 0)
+                {
+                    addThisFrame = growPerFrame;
+                    yield return null;
+                }
             }
         }
 
