@@ -35,7 +35,7 @@ namespace CodexFramework.Utils.Pools
         }
 
 #if UNITY_EDITOR
-        [MenuItem("Pools/Fix pools", false, -1)]
+        [MenuItem("Utils/Pools/Fix pools", false, -1)]
         private static void FixPools()
         {
             foreach (var pool in FindObjectsOfType<ObjectPool>())
