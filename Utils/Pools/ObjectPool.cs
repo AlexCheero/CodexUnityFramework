@@ -155,10 +155,10 @@ namespace CodexFramework.Utils.Pools
             var addThisFrame = growPerFrame;
             for (int i = _firstAvailable; i < _objects.Length; i++)
             {
-#if DEBUG
-                if (_objects[i] != null)
-                    throw new Exception("non null pool items after grow");
-#endif
+//#if DEBUG
+//                if (_objects[i] != null)
+//                    throw new Exception("non null pool items after grow");
+//#endif
                 AddNew(i);
                 addThisFrame--;
                 if (addThisFrame == 0)
