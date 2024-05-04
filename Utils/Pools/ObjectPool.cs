@@ -155,6 +155,7 @@ namespace CodexFramework.Utils.Pools
             var addThisFrame = growPerFrame;
             for (int i = _firstAvailable; i < _objects.Length; i++)
             {
+                //looks like it could cause problems if AddNew will be called outside of the routine
 //#if DEBUG
 //                if (_objects[i] != null)
 //                    throw new Exception("non null pool items after grow");
