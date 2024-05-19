@@ -1,5 +1,4 @@
 using System;
-using CodexFramework.Mangers;
 using CodexFramework.Utils;
 
 namespace CodexFramework.Templates
