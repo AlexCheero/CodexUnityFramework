@@ -422,16 +422,12 @@ namespace CodexFramework.Utils
             bool mergeMeshes,
             bool optimize)
         {
-            if (skins == null || skins.Length == 0)
-            {
-                Debug.LogError("skin is null!!");
-                return null;
-            }
-
             var invertedScale = new Vector3(1 / scale.x, 1 / scale.y, 1 / scale.z);
             Matrix4x4 scaleMatrix = Matrix4x4.Scale(invertedScale);
-            var combine = new CombineInstance[skins.Length + meshes.Length];
-            for (int i = 0; i < skins.Length; i++)
+            var skinsLength = skins != null ? skins.Length : 0;
+            var meshesLength = meshes != null ? meshes.Length : 0;
+            var combine = new CombineInstance[skinsLength + meshesLength];
+            for (int i = 0; i < skinsLength; i++)
             {
                 SkinnedMeshRenderer skinnedMeshRenderer = skins[i];
                 var mesh = new Mesh();
@@ -442,13 +438,13 @@ namespace CodexFramework.Utils
                 combine[i].mesh = mesh;
                 combine[i].transform = scaleMatrix * skinnedMeshRenderer.transform.localToWorldMatrix;
             }
-            for (int i = 0; i < meshes.Length; i++)
+            for (int i = 0; i < meshesLength; i++)
             {
-                Mesh mesh = meshes[i].sharedMesh;
+                Mesh mesh = meshes[i].sharedMesh != null ? meshes[i].sharedMesh : meshes[i].mesh;
                 if (optimize)
                     mesh.Optimize();
 
-                var combineIdx = i + skins.Length;
+                var combineIdx = i + skinsLength;
                 combine[combineIdx].mesh = mesh;
                 combine[combineIdx].transform = scaleMatrix * meshes[i].transform.localToWorldMatrix;
             }
