@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.Audio;
 
-namespace CodexFramework.Mangers
+namespace CodexFramework.Templates
 {
     public class AudioManager : Singleton<AudioManager>
     {
