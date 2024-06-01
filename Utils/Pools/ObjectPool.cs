@@ -172,6 +172,9 @@ namespace CodexFramework.Utils.Pools
 
         private void AddNew(int idx)
         {
+            if (_objects[idx] != null)
+                return;
+
             _objects[idx] = Instantiate(_prototype, transform);
             _objects[idx].AddToPool(this, idx);
             _objects[idx].gameObject.SetActive(false);
