@@ -109,6 +109,14 @@ namespace CodexFramework.Utils
 
     public static class Utils
     {
+        public static Vector3 GetRandomVector3(float minValue, float maxValue)
+        {
+            float x = UnityEngine.Random.Range(minValue, maxValue);
+            float y = UnityEngine.Random.Range(minValue, maxValue);
+            float z = UnityEngine.Random.Range(minValue, maxValue);
+            return new Vector3(x, y, z);
+        }
+
         public static bool GetTouchDownPosition(ref Vector3 position)
         {
             if (Input.mousePresent)
