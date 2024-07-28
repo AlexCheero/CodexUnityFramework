@@ -327,6 +327,29 @@ namespace CodexFramework.Utils
         public static (Collider[], int) OverlapSphereNonAlloc(Vector3 position, float radius, int layerMask) =>
             (_overlapBuffer, Physics.OverlapSphereNonAlloc(position, radius, _overlapBuffer, layerMask));
 
+        public static bool GetTouchPosition(out Vector3 position)
+        {
+            position = Vector3.zero;
+#if UNITY_EDITOR
+            if (Input.GetMouseButtonDown(0))
+            {
+                position = Input.mousePosition;
+                return true;
+            }
+#else
+        if (Input.touchCount > 0)
+        {
+            var touch = Input.GetTouch(0);
+            if (touch.phase != TouchPhase.Began)
+                return false;
+            position = Input.GetTouch(0).position;
+            return true;
+        }
+#endif
+
+            return false;
+        }
+
         public static int FindClosestBiggerPowerOfTwo(int n)
         {
             int power = 1;
