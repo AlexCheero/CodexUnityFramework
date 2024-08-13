@@ -358,6 +358,23 @@ namespace CodexFramework.Utils
             return power;
         }
 
+        public static int GetRandomIndexByWeight(IList<float> weights)
+        {
+            var totalSum = 0f;
+            foreach (var weight in weights)
+                totalSum += weight;
+            var random = UnityEngine.Random.Range(0f, totalSum);
+            for (int i = 0; i < weights.Count; i++)
+            {
+                if (random < weights[i])
+                    return i;
+                random -= weights[i];
+            }
+
+            Debug.LogError("This should never happen");
+            return 0;
+        }
+
         public static T GetRandomObjectByWeight<T>(IEnumerable<WeightedValue<T>> weightedObjects)
         {
             var totalSum = 0f;
