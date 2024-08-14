@@ -109,6 +109,12 @@ namespace CodexFramework.Utils
 
     public static class Utils
     {
+        public static void SwitchRBPhysics(this Rigidbody rb, bool on)
+        {
+            rb.useGravity = on;
+            rb.isKinematic = !on;
+        }
+
         public static Vector3 GetRandomVector3(float minValue, float maxValue)
         {
             float x = UnityEngine.Random.Range(minValue, maxValue);
