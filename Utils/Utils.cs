@@ -120,6 +120,8 @@ namespace CodexFramework.Utils
             get => _value;
             set { _initialValue ??= _value; _value = value; }
         }
+
+        public DefaultableValue(T value) => _initialValue = _value = value;
     }
 
     public static class Utils
