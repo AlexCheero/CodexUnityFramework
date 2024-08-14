@@ -107,6 +107,21 @@ namespace CodexFramework.Utils
         public int Count;
     }
 
+    [Serializable]
+    public struct DefaultableValue<T> where T : struct
+    {
+        private T? _initialValue;
+        [SerializeField]
+        private T _value;
+
+        public T InitialValue { get { _initialValue ??= _value; return _initialValue.Value; } }
+        public T Value
+        {
+            get => _value;
+            set { _initialValue ??= _value; _value = value; }
+        }
+    }
+
     public static class Utils
     {
         public static void SwitchRBPhysics(this Rigidbody rb, bool on)
@@ -479,7 +494,25 @@ namespace CodexFramework.Utils
             return combinedMesh;
         }
 
+#if DEBUG
+        public static GameObject CreateDebugIndicatorObject(string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
+            => CreateDebugIndicatorObject(Color.cyan, name, primitive, scale);
+        public static GameObject CreateDebugIndicatorObject(Color color, string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
+        {
+            var indicator = GameObject.CreatePrimitive(primitive);
+            UnityEngine.Object.Destroy(indicator.GetComponent<Collider>());
+            indicator.transform.localScale = new Vector3(scale, scale, scale);
+            indicator.GetComponent<Renderer>().material.color = color;
+            indicator.name = name;
+
+            return indicator;
+        }
+#endif
+    }
+
 #if UNITY_EDITOR
+    public static class EditorUtils
+    {
         [MenuItem("Utils/Clear PlayerPrefs", false, -1)]
         private static void ClearPlayerPrefs() => PlayerPrefs.DeleteAll();
 
@@ -543,21 +576,37 @@ namespace CodexFramework.Utils
                 Debug.DrawLine(sZ, eZ, color, duration);
             }
         }
-#endif
 
-#if DEBUG
-        public static GameObject CreateDebugIndicatorObject(string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
-            => CreateDebugIndicatorObject(Color.cyan, name, primitive, scale);
-        public static GameObject CreateDebugIndicatorObject(Color color, string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
+        private static IEnumerable<T> GetComponentsFromProject<T>() where T : MonoBehaviour
         {
-            var indicator = GameObject.CreatePrimitive(primitive);
-            UnityEngine.Object.Destroy(indicator.GetComponent<Collider>());
-            indicator.transform.localScale = new Vector3(scale, scale, scale);
-            indicator.GetComponent<Renderer>().material.color = color;
-            indicator.name = name;
+            string[] prefabGUIDs = AssetDatabase.FindAssets("t:Prefab");
+            List<T> components = new();
+            foreach (string guid in prefabGUIDs)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                var comp = prefab.GetComponent<T>();
+                if (comp != null)
+                    components.Add(comp);
+            }
 
-            return indicator;
+            return components;
         }
-#endif
+
+        //[MenuItem("../../..")]
+        public static void ChangeComponentsInProject<T>(Action<T> changer) where T : MonoBehaviour
+        {
+            var components = GetComponentsFromProject<T>();
+            foreach (var component in components)
+            {
+                changer(component);
+                EditorUtility.SetDirty(component);
+            }
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("Changing " + typeof(T).Name + " in project complete");
+        }
     }
+#endif
 }
