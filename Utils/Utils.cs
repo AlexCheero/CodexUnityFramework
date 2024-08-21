@@ -13,6 +13,20 @@ using UnityEngine.UI;
 namespace CodexFramework.Utils
 {
     [Serializable]
+    public struct Trigger<T>
+    {
+        private T _t;
+        public T Check()
+        {
+            var result = _t;
+            _t = default;
+            return result;
+        }
+
+        public void Set(T t) => _t = t;
+    }
+
+    [Serializable]
     public struct Cortege<T1, T2>
     {
         public T1 item1;
