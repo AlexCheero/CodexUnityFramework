@@ -9,6 +9,10 @@ namespace CodexFramework.Utils.Pools
     public class PoolItem : MonoBehaviour
     {
         [SerializeField]
+        private int _initialCount = 2;
+        public int InitialCount => _initialCount;
+        
+        [SerializeField]
         private ObjectPool _pool;
         [SerializeField]
         private int _idx;
