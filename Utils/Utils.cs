@@ -137,7 +137,7 @@ namespace CodexFramework.Utils
 
         public DefaultableValue(T value) => _initialValue = _value = value;
 
-        public void Reset() => _value = _initialValue ?? default;
+        public void Reset() => _value = InitialValue;
     }
 
     public static class Utils
