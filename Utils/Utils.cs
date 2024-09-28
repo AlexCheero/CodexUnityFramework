@@ -15,6 +15,7 @@ namespace CodexFramework.Utils
     [Serializable]
     public struct Trigger<T>
     {
+        [SerializeField]
         private T _t;
         public T Check()
         {
