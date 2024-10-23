@@ -615,7 +615,9 @@ namespace CodexFramework.Utils
             return v;
         }
 
-        public static void DrawDebugSphere(Vector4 pos, float radius, Color color, float duration)
+        public static void DrawDebugSphere(Vector3 pos, float radius, Color color, float duration = 0.0f)
+            => DrawDebugSphere(new Vector4(pos.x, pos.y, pos.z), radius, color, duration);
+        public static void DrawDebugSphere(Vector4 pos, float radius, Color color, float duration = 0.0f)
         {
             Vector4[] v = s_UnitSphere;
             int len = s_UnitSphere.Length / 3;
