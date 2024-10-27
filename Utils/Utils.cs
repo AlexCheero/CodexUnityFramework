@@ -64,13 +64,6 @@ namespace CodexFramework.Utils
         public void Set(T t) => _t = t;
     }
 
-    [Serializable]
-    public struct Cortege<T1, T2>
-    {
-        public T1 item1;
-        public T2 item2;
-    }
-
     static class IListExtensions
     {
         public static void Shuffle<T>(this IList<T> list)
