@@ -32,10 +32,12 @@ namespace CodexFramework.Gameplay
             var _x = data.currentValue;
             var _v = data.currentVelocity;
 
-            var steps = Mathf.Ceil(deltaTime / data.stepSize);
+            //hack because stepsize is 0 in build somehow
+            var stepSize = data.stepSize > 0 ? data.stepSize : 1 / 60.0f;
+            var steps = Mathf.Ceil(deltaTime / stepSize);
             for (var i = 0; i < steps; i++)
             {
-                var dt = i == steps - 1 ? deltaTime - i * data.stepSize : data.stepSize;
+                var dt = i == steps - 1 ? deltaTime - i * stepSize : stepSize;
 
                 var a_v = _v;
                 var a_a = (-k * (_x - data.endValue) - c * _v) / m;
