@@ -62,7 +62,6 @@ namespace CodexFramework.Utils.Pools
             Action<PoolItem> onGet,
             Action<PoolItem> onReturn)
         {
-            Debug.LogWarning("can't find pool with prototype " + prototype.name + ". creating new one");
             ObjectPool pool = null;
             if (createIfNotFoundWithSize > 0)
             {
