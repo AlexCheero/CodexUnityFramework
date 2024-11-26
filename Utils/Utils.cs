@@ -19,6 +19,15 @@ namespace CodexFramework.Utils
         private MyTuple<K, V>[] _pairs;
         private Dictionary<K, V> _dict;
 
+        public Dictionary<K, V> Dict
+        {
+            get
+            {
+                _dict ??= ConvertToDict(_pairs);
+                return _dict;
+            }
+        }
+
         private Dictionary<K, V> ConvertToDict(MyTuple<K, V>[] pairs)
         {
             var set = new Dictionary<K, V>(pairs.Length);
