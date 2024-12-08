@@ -10,6 +10,10 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
 
+#if UNITY_EDITOR
+using System.Reflection;
+#endif
+
 namespace CodexFramework.Utils
 {
     [Serializable]
@@ -666,6 +670,14 @@ namespace CodexFramework.Utils
             AssetDatabase.Refresh();
 
             Debug.Log("Changing " + typeof(T).Name + " in project complete");
+        }
+        
+        public static void ClearLog()
+        {
+            var assembly = Assembly.GetAssembly(typeof(Editor));
+            var type = assembly.GetType("UnityEditor.LogEntries");
+            var method = type.GetMethod("Clear");
+            method.Invoke(new object(), null);
         }
     }
 #endif
