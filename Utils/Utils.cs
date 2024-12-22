@@ -671,7 +671,14 @@ namespace CodexFramework.Utils
 
             Debug.Log("Changing " + typeof(T).Name + " in project complete");
         }
-        
+
+        // [MenuItem("Utils/" + nameof(FixView))]
+        // public static void FixView() => ChangeComponentsInProject<SprintSpeedComponentView>(view =>
+        // {
+        //     ref var component = ref view.Component;
+        //     // component.speed = component._speed;
+        // });
+
         public static void ClearLog()
         {
             var assembly = Assembly.GetAssembly(typeof(Editor));
