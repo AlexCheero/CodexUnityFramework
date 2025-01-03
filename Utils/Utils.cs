@@ -9,6 +9,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 #if UNITY_EDITOR
 using System.Reflection;
@@ -663,8 +664,9 @@ namespace CodexFramework.Utils
             var components = GetComponentsFromProject<T>();
             foreach (var component in components)
             {
+                var go = component.gameObject;
                 changer(component);
-                EditorUtility.SetDirty(component);
+                EditorUtility.SetDirty(go);
             }
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -672,12 +674,15 @@ namespace CodexFramework.Utils
             Debug.Log("Changing " + typeof(T).Name + " in project complete");
         }
 
-        // [MenuItem("Utils/" + nameof(FixView))]
-        // public static void FixView() => ChangeComponentsInProject<SprintSpeedComponentView>(view =>
-        // {
-        //     ref var component = ref view.Component;
-        //     // component.speed = component._speed;
-        // });
+        [MenuItem("Utils/" + nameof(CacheMeatParts))]
+        public static void CacheMeatParts() => ChangeComponentsInProject<MeatPartsView>(view =>
+        {
+            ref var component = ref view.Component;
+            var rigidBodies = view.GetComponentsInChildren<Rigidbody>();
+            component.parts = new(rigidBodies.Length);
+            foreach (var rb in rigidBodies)
+                component.parts.Add(new MeatParts.RbPositionPair { Rb = rb, LocalPosition = rb.transform.localPosition });
+        });
 
         public static void ClearLog()
         {
