@@ -642,7 +642,7 @@ namespace CodexFramework.Utils
             }
         }
 
-        private static IEnumerable<T> GetComponentsFromProject<T>() where T : MonoBehaviour
+        private static IEnumerable<T> GetComponentsFromProject<T>() where T : Component
         {
             string[] prefabGUIDs = AssetDatabase.FindAssets("t:Prefab");
             List<T> components = new();
@@ -659,7 +659,7 @@ namespace CodexFramework.Utils
         }
 
         //[MenuItem("../../..")]
-        public static void ChangeComponentsInProject<T>(Action<T> changer) where T : MonoBehaviour
+        public static void ChangeComponentsInProject<T>(Action<T> changer) where T : Component
         {
             var components = GetComponentsFromProject<T>();
             foreach (var component in components)
