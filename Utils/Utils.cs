@@ -681,7 +681,10 @@ namespace CodexFramework.Utils
             var rigidBodies = view.GetComponentsInChildren<Rigidbody>();
             component.parts = new(rigidBodies.Length);
             foreach (var rb in rigidBodies)
-                component.parts.Add(new MeatParts.RbPositionPair { Rb = rb, LocalPosition = rb.transform.localPosition });
+            {
+                if (rb.gameObject != view.gameObject)
+                    component.parts.Add(new MeatParts.RbPositionPair { Rb = rb, LocalPosition = rb.transform.localPosition });
+            }
         });
 
         public static void ClearLog()
