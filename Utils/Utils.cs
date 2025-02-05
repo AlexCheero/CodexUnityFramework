@@ -674,19 +674,6 @@ namespace CodexFramework.Utils
             Debug.Log("Changing " + typeof(T).Name + " in project complete");
         }
 
-        [MenuItem("Utils/" + nameof(CacheMeatParts))]
-        public static void CacheMeatParts() => ChangeComponentsInProject<MeatPartsView>(view =>
-        {
-            ref var component = ref view.Component;
-            var rigidBodies = view.GetComponentsInChildren<Rigidbody>();
-            component.parts = new(rigidBodies.Length);
-            foreach (var rb in rigidBodies)
-            {
-                if (rb.gameObject != view.gameObject)
-                    component.parts.Add(new MeatParts.RbPositionPair { Rb = rb, LocalPosition = rb.transform.localPosition });
-            }
-        });
-
         public static void ClearLog()
         {
             var assembly = Assembly.GetAssembly(typeof(Editor));
