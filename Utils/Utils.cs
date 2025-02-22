@@ -4,6 +4,7 @@ using CodexFramework.Utils.Pools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
@@ -246,6 +247,7 @@ namespace CodexFramework.Utils
             return enumerable.ElementAt(UnityEngine.Random.Range(0, enumerable.Count()));
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetAlpha(this Image image, float alpha)
         {
             var color = image.color;
@@ -253,6 +255,7 @@ namespace CodexFramework.Utils
             image.color = color;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetAlpha(this SpriteRenderer spriteRenderer, float alpha)
         {
             var color = spriteRenderer.color;
@@ -260,6 +263,7 @@ namespace CodexFramework.Utils
             spriteRenderer.color = color;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetAlpha(this TextMeshProUGUI text, float alpha)
         {
             var color = text.color;
@@ -267,6 +271,7 @@ namespace CodexFramework.Utils
             text.color = color;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetAlpha(this Material material, float alpha)
         {
             var color = material.color;
