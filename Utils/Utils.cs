@@ -412,7 +412,7 @@ namespace CodexFramework.Utils
             int layerMask) =>
             (_castBuffer, Physics.SphereCastNonAlloc(origin, radius, direction, _castBuffer, maxDistance, layerMask));
 
-        private static readonly Collider[] _overlapBuffer = new Collider[32];
+        private static readonly Collider[] _overlapBuffer = new Collider[64];
         public static (Collider[], int) OverlapSphereNonAlloc(Vector3 position, float radius, int layerMask) =>
             (_overlapBuffer, Physics.OverlapSphereNonAlloc(position, radius, _overlapBuffer, layerMask));
 
