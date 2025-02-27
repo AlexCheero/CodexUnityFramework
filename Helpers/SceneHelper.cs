@@ -1,4 +1,5 @@
-﻿using CodexFramework.CodexEcsUnityIntegration;
+﻿using System;
+using CodexFramework.CodexEcsUnityIntegration;
 using CodexFramework.Gameplay.UI;
 using System.Collections;
 using UnityEngine;
@@ -8,6 +9,9 @@ namespace CodexFramework.Helpers
 {
     public static class SceneHelper
     {
+        public static event Action<string> OnSceneLoaded;
+        public static bool IsOnSceneLoadedAssigned => OnSceneLoaded != null;
+
         private const float _minLoadTime = 0.0f;
 
         public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().name);
@@ -39,6 +43,7 @@ namespace CodexFramework.Helpers
             }
 
             asyncOp.allowSceneActivation = true;
+            asyncOp.completed += _ => OnSceneLoaded?.Invoke(levelName);
         }
     }
 }
