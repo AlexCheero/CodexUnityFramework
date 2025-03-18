@@ -9,16 +9,13 @@ namespace CodexFramework.Helpers
 {
     public static class SceneHelper
     {
-        public static event Action<string> OnSceneLoaded;
-        public static bool IsOnSceneLoadedAssigned => OnSceneLoaded != null;
-
         private const float _minLoadTime = 0.0f;
 
         public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().name);
 
-        public static void LoadScene(string name)
+        public static void LoadScene(string name, LoadSceneMode loadMode = LoadSceneMode.Single, Action<string> onLoadComplete = null)
         {
-            CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime));
+            CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime, loadMode, onLoadComplete));
 
             //AdsManager.Instance.ShowInter(() =>
             //{
@@ -26,14 +23,15 @@ namespace CodexFramework.Helpers
             //});
         }
 
-        private static IEnumerator LoadSceneRoutine(string levelName, float minLoadTime)
+        private static IEnumerator LoadSceneRoutine(string levelName, float minLoadTime,
+            LoadSceneMode loadMode = LoadSceneMode.Single, Action<string> onLoadComplete = null)
         {
             if (ECSPipelineController.IsCreated)
                 ECSPipelineController.Instance.Pause();
             if (LoadingScreen.IsCreated)
                 LoadingScreen.Instance.gameObject.SetActive(true);
 
-            var asyncOp = SceneManager.LoadSceneAsync(levelName);
+            var asyncOp = SceneManager.LoadSceneAsync(levelName, loadMode);
             asyncOp.allowSceneActivation = false;
 
             while (minLoadTime > 0)
@@ -43,7 +41,7 @@ namespace CodexFramework.Helpers
             }
 
             asyncOp.allowSceneActivation = true;
-            asyncOp.completed += _ => OnSceneLoaded?.Invoke(levelName);
+            asyncOp.completed += _ => onLoadComplete?.Invoke(levelName);
         }
     }
 }
