@@ -71,7 +71,7 @@ namespace CodexFramework.Templates
             var versionNumbers2 = version2.Split('.');
             if (version1.Length != versionNumbers2.Length)
             {
-                Debug.LogError("corrupted version string");
+                Debug.LogError($"corrupted version string. v1: {version1}, v2: {version2}");
                 return -1;
             }
 
