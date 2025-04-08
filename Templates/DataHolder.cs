@@ -65,36 +65,33 @@ namespace CodexFramework.Templates
             #endregion
         }
 
-        private bool ShouldWipe()
+        private int CompareVersions(string version1, string version2)
         {
-            if (!_userDataDict.ContainsKey(Constants.VersionKey))
-                return false;
-
-            var prevVersionNumbers = _userDataDict[Constants.VersionKey].Split('.');
-            var currentVersionNumbers = Application.version.Split('.');
-
-            if (prevVersionNumbers.Length != currentVersionNumbers.Length)
+            var versionNumbers1 = version1.Split('.');
+            var versionNumbers2 = version2.Split('.');
+            if (version1.Length != versionNumbers2.Length)
             {
                 Debug.LogError("corrupted version string");
-                return false;
+                return -1;
             }
 
-            var isVersionLower = false;
-            for (int i = prevVersionNumbers.Length - 1; i >= 0; i--)
+            for (int i = versionNumbers1.Length - 1; i >= 0; i--)
             {
-                var strippedPrev = new string(prevVersionNumbers[i].Where(c => char.IsDigit(c)).ToArray());
-                var strippedCurr = new string(currentVersionNumbers[i].Where(c => char.IsDigit(c)).ToArray());
+                var strippedPrev = new string(versionNumbers1[i].Where(c => char.IsDigit(c)).ToArray());
+                var strippedCurr = new string(versionNumbers2[i].Where(c => char.IsDigit(c)).ToArray());
                 var prevNum = int.Parse(strippedPrev, CultureInfo.InvariantCulture);
                 var currNum = int.Parse(strippedCurr, CultureInfo.InvariantCulture);
                 if (prevNum < currNum)
-                {
-                    isVersionLower = true;
-                    break;
-                }
+                    return -1;
+                if (prevNum > currNum)
+                    return 1;
             }
 
-            return isVersionLower;
+            return 0;
         }
+        
+        private bool ShouldWipe() =>
+            PlayerPrefs.HasKey(Constants.VersionKey) && CompareVersions(PlayerPrefs.GetString(Constants.VersionKey), Application.version) < 0;
 
         private void Wipe()
         {
