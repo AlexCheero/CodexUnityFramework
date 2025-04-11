@@ -16,6 +16,11 @@ namespace CodexFramework.Utils.Pools
 
         public ObjectPool GetByPrototype(
             PoolItem prototype,
+            Action<PoolItem> onGet = null,
+            Action<PoolItem> onReturn = null) => GetByPrototype(prototype, prototype.InitialCount, onGet, onReturn);
+        
+        public ObjectPool GetByPrototype(
+            PoolItem prototype,
             int createIfNotFoundWithSize = 16,
             Action<PoolItem> onGet = null,
             Action<PoolItem> onReturn = null)

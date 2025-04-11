@@ -522,6 +522,45 @@ namespace CodexFramework.Utils
             view.InitAsEntity(world);
             return view;
         }
+        
+        public static EntityView GetPooledEntityView(
+            PooledEntityView prototype,
+            EcsWorld world,
+            Action<PoolItem> onGet = null,
+            Action<PoolItem> onReturn = null)
+        {
+            var pool = PoolManager.Instance.GetByPrototype(prototype, onGet, onReturn);
+            var view = pool.Get().GetComponentAndCache<EntityView>();
+            view.InitAsEntity(world);
+            return view;
+        }
+
+        public static EntityView GetPooledEntityView(
+            PooledEntityView prototype,
+            EcsWorld world,
+            Vector3 position,
+            Action<PoolItem> onGet = null,
+            Action<PoolItem> onReturn = null)
+        {
+            var pool = PoolManager.Instance.GetByPrototype(prototype, onGet, onReturn);
+            var view = pool.Get(position).GetComponentAndCache<EntityView>();
+            view.InitAsEntity(world);
+            return view;
+        }
+
+        public static EntityView GetPooledEntityView(
+            PooledEntityView prototype,
+            EcsWorld world,
+            Vector3 position,
+            Quaternion rotation,
+            Action<PoolItem> onGet = null,
+            Action<PoolItem> onReturn = null)
+        {
+            var pool = PoolManager.Instance.GetByPrototype(prototype, onGet, onReturn);
+            var view = pool.Get(position, rotation).GetComponentAndCache<EntityView>();
+            view.InitAsEntity(world);
+            return view;
+        }
 
         public static Mesh BakeMesh(
             SkinnedMeshRenderer[] skins,
