@@ -7,9 +7,6 @@ namespace CodexFramework.Utils.Pools
 {
     public class ObjectPool : MonoBehaviour
     {
-        public event Action<PoolItem> OnGetItem;
-        public event Action<PoolItem> OnReturnItem;
-
         [SerializeField]
         private int _initialCount;
         [SerializeField]
@@ -23,19 +20,11 @@ namespace CodexFramework.Utils.Pools
 
         public GameObject PrototypeGO => _prototype.gameObject;
 
-        public bool IsOnGetBinded => OnGetItem != null;
-        public bool IsOnReturnBinded => OnReturnItem != null;
-
-        public void Init(int initialCount, PoolItem prototype, Action<PoolItem> onGet = null, Action<PoolItem> onReturn = null)
+        public void Init(int initialCount, PoolItem prototype)
         {
             _initialCount = initialCount;
             _prototype = prototype;
             StartCoroutine(Fix(GrowPerFrame));
-
-            if (onGet != null)
-                OnGetItem += onGet;
-            if (onReturn != null)
-                OnReturnItem += onReturn;
         }
 
 #if UNITY_EDITOR
@@ -107,22 +96,20 @@ namespace CodexFramework.Utils.Pools
             item.gameObject.SetActive(true);
             _firstAvailable++;
 
-            if (OnGetItem != null)
-                OnGetItem(item);
-
+            item.OnGetFromPool();
             return item;
         }
         public PoolItem Get(Vector3 position)
         {
-            var retVal = Get();
-            retVal.transform.position = position;
-            return retVal;
+            var item = Get();
+            item.transform.position = position;
+            return item;
         }
         public PoolItem Get(Vector3 position, Quaternion rotation)
         {
-            var retVal = Get();
-            retVal.transform.SetPositionAndRotation(position, rotation);
-            return retVal;
+            var item = Get();
+            item.transform.SetPositionAndRotation(position, rotation);
+            return item;
         }
 
         private void InstantGrow()
@@ -177,6 +164,7 @@ namespace CodexFramework.Utils.Pools
                 return;
 
             _objects[idx] = Instantiate(_prototype, transform);
+            _objects[idx].OnCreate();
             _objects[idx].AddToPool(this, idx);
             _objects[idx].gameObject.SetActive(false);
         }
@@ -188,9 +176,6 @@ namespace CodexFramework.Utils.Pools
             if (_firstAvailable == 0)
                 throw new Exception("pool have no active items but something is returned: " + item.name);
 #endif
-
-            if (OnReturnItem != null)
-                OnReturnItem(item);
 
             item.gameObject.SetActive(false);
             item.transform.parent = transform;

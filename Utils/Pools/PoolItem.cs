@@ -6,6 +6,21 @@ using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
 {
+    public interface IPoolableBehaviour
+    {
+        public PoolItem Item { get; }
+    }
+    
+    public interface IResetOnGetPoolableBehaviour : IPoolableBehaviour
+    {
+        public void OnGet();
+    }
+    
+    public interface IResetOnReturnPoolableBehaviour : IPoolableBehaviour
+    {
+        public void OnReturn();
+    }
+    
     public class PoolItem : MonoBehaviour
     {
         [SerializeField]
@@ -19,22 +34,36 @@ namespace CodexFramework.Utils.Pools
 
         private Dictionary<Type, Component> _cachedComponents;
         private Dictionary<Type, Component[]> _cachedChildrenComponents;
+        private IResetOnGetPoolableBehaviour[] _getPoolableBehaviours;
+        private IResetOnReturnPoolableBehaviour[] _returnPoolableBehaviours;
 
         public int Idx => _idx;
 
-        public bool IsFirstUse { get; private set; } = true;
-
+        public void OnCreate()
+        {
+            _getPoolableBehaviours = GetComponents<IResetOnGetPoolableBehaviour>();
+            _returnPoolableBehaviours = GetComponents<IResetOnReturnPoolableBehaviour>();
+        }
+        
         public void AddToPool(ObjectPool pool, int idx)
         {
             _pool = pool;
             _idx = idx;
         }
 
-        public virtual void ReturnToPool()
+        public void OnGetFromPool()
+        {
+            for (var i = 0; i < _getPoolableBehaviours.Length; i++)
+                _getPoolableBehaviours[i].OnGet();
+        }
+
+        public void ReturnToPool()
         {
             StopAllCoroutines();
-            IsFirstUse = false;
             _pool.ReturnItem(this);
+            
+            for (var i = 0; i < _returnPoolableBehaviours.Length; i++)
+                _returnPoolableBehaviours[i].OnReturn();
         }
 
         private bool _isDelayedReturning;
