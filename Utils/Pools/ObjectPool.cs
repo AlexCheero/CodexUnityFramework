@@ -18,7 +18,7 @@ namespace CodexFramework.Utils.Pools
         private PoolItem[] _objects;
         private int _firstAvailable = 0;
 
-        //TODO: turn into changable parameter
+        //TODO: turn into changeable parameter
         private int GrowPerFrame => 1;
 
         public GameObject PrototypeGO => _prototype.gameObject;
@@ -107,7 +107,8 @@ namespace CodexFramework.Utils.Pools
             item.gameObject.SetActive(true);
             _firstAvailable++;
 
-            OnGetItem?.Invoke(item);
+            if (OnGetItem != null)
+                OnGetItem(item);
 
             return item;
         }
@@ -188,7 +189,8 @@ namespace CodexFramework.Utils.Pools
                 throw new Exception("pool have no active items but something is returned: " + item.name);
 #endif
 
-            OnReturnItem?.Invoke(item);
+            if (OnReturnItem != null)
+                OnReturnItem(item);
 
             item.gameObject.SetActive(false);
             item.transform.parent = transform;
