@@ -100,7 +100,12 @@ namespace CodexFramework.Utils.Pools
 
         public void OnReturn()
         {
-            throw new System.NotImplementedException();
+            for (var i = 0; i < _rigidbodies.Length; i++)
+            {
+                var rb = _rigidbodies[i];
+                rb.isKinematic = true;
+                rb.Sleep();
+            }
         }
     }
 }
