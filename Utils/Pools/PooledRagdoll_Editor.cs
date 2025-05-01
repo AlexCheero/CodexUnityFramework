@@ -1,9 +1,9 @@
-﻿using UnityEditor.SceneManagement;
+﻿#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
 {
-#if UNITY_EDITOR
     [ExecuteAlways]
     public partial class PooledRagdoll
     {
@@ -173,5 +173,5 @@ namespace CodexFramework.Utils.Pools
             return true;
         }
     }
-#endif
 }
+#endif
