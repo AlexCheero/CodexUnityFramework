@@ -13,8 +13,13 @@ namespace CodexFramework.Helpers
 
         public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().name);
 
+        private static bool _loadStarted;
         public static void LoadScene(string name, LoadSceneMode loadMode = LoadSceneMode.Single, Action<string> onLoadComplete = null)
         {
+            if (_loadStarted)
+                return;
+            
+            _loadStarted = true;
             CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime, loadMode, onLoadComplete));
 
             //AdsManager.Instance.ShowInter(() =>
@@ -41,7 +46,11 @@ namespace CodexFramework.Helpers
             }
 
             asyncOp.allowSceneActivation = true;
-            asyncOp.completed += _ => onLoadComplete?.Invoke(levelName);
+            asyncOp.completed += _ =>
+            {
+                _loadStarted = false;
+                onLoadComplete?.Invoke(levelName);
+            };
         }
     }
 }
