@@ -88,7 +88,7 @@ namespace CodexFramework.Utils.Pools
                 throw new Exception("_firstAvailable can't be bigger than _objects.Length");
 #endif
             if (_firstAvailable == _objects.Length)
-                StartCoroutine(GrowRoutine(GrowPerFrame));
+                Grow(GrowPerFrame);
 
             if (_objects[_firstAvailable] == null)
                 AddNew(_firstAvailable);
@@ -127,8 +127,19 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
+        private void Grow(int growPerFrame)
+        {
+            const int maxResizeDelta = 64;
+            CodexECS.Utility.Utils.ResizeArray(_objects.Length + 1, ref _objects, maxResizeDelta);
+            if (!_growRoutineGuard)
+                StartCoroutine(GrowRoutine(growPerFrame));
+        }
+        
+        private bool _growRoutineGuard;
         private IEnumerator GrowRoutine(int growPerFrame)
         {
+            _growRoutineGuard = true;
+            
 #if DEBUG
             if (growPerFrame < 1)
             {
@@ -136,9 +147,6 @@ namespace CodexFramework.Utils.Pools
                 growPerFrame = 1;
             }
 #endif
-
-            var newLength = _objects.Length << 1;
-            Array.Resize(ref _objects, newLength);
 
             var addThisFrame = growPerFrame;
             for (int i = _firstAvailable; i < _objects.Length; i++)
@@ -156,6 +164,8 @@ namespace CodexFramework.Utils.Pools
                     yield return null;
                 }
             }
+
+            _growRoutineGuard = false;
         }
 
         private void AddNew(int idx)
