@@ -50,6 +50,7 @@ namespace CodexFramework.Helpers
             {
                 _loadStarted = false;
                 onLoadComplete?.Invoke(levelName);
+                Time.timeScale = 1.0f;//restore time scale on load new scene
             };
         }
     }
