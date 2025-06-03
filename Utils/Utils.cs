@@ -97,7 +97,27 @@ namespace CodexFramework.Utils
             return _dict.ContainsKey(key);
         }
     }
-    
+
+    [Serializable]
+    public struct RandomFloat
+    {
+        public float Min;
+        public float Max;
+
+        public float Value => UnityEngine.Random.Range(Min, Max);
+        public float Average => (Min + Max) / 2;
+    }
+
+    [Serializable]
+    public struct RandomInt
+    {
+        public int Min;
+        public int Max;
+
+        public int Value => UnityEngine.Random.Range(Min, Max);
+        public int Average => (Min + Max) / 2;
+    }
+
     [Serializable]
     public struct Trigger<T>
     {
