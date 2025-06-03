@@ -105,7 +105,17 @@ namespace CodexFramework.Utils
         public float Max;
 
         public float Value => UnityEngine.Random.Range(Min, Max);
-        public float Average => (Min + Max) / 2;
+        public float Average
+        {
+            get => (Min + Max) / 2;
+            set
+            {
+                var delta = Distance / 2;
+                Min = value - delta;
+                Max = value + delta;
+            }
+        }
+        public float Distance => Max - Min;
     }
 
     [Serializable]
@@ -115,7 +125,17 @@ namespace CodexFramework.Utils
         public int Max;
 
         public int Value => UnityEngine.Random.Range(Min, Max);
-        public int Average => (Min + Max) / 2;
+        public int Average
+        {
+            get => (Min + Max) / 2;
+            set
+            {
+                var delta = Distance / 2;
+                Min = value - delta;
+                Max = value + delta;
+            }
+        }
+        public int Distance => Max - Min;
     }
 
     [Serializable]
