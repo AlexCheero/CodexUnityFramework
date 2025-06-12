@@ -743,6 +743,22 @@ namespace CodexFramework.Utils
             return components;
         }
 
+        private static IEnumerable<GameObject> GetObjectsWithComponentInHierarchy<T>() where T : Component
+        {
+            string[] prefabGUIDs = AssetDatabase.FindAssets("t:Prefab");
+            List<GameObject> components = new();
+            foreach (string guid in prefabGUIDs)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                var comps = prefab.GetComponentsInChildren<T>();
+                if (comps.Length > 0)
+                    components.Add(prefab);
+            }
+
+            return components;
+        }
+
         //[MenuItem("../../..")]
         public static void ChangeComponentsInProject<T>(Action<T> changer) where T : Component
         {
@@ -751,6 +767,20 @@ namespace CodexFramework.Utils
             {
                 var go = component.gameObject;
                 changer(component);
+                EditorUtility.SetDirty(go);
+            }
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("Changing " + typeof(T).Name + " in project complete");
+        }
+
+        public static void ChangeObjectsWithComponentInHerarchyInProject<T>(Action<GameObject> changer) where T : Component
+        {
+            var objects = GetObjectsWithComponentInHierarchy<T>();
+            foreach (var go in objects)
+            {
+                changer(go);
                 EditorUtility.SetDirty(go);
             }
             AssetDatabase.SaveAssets();
