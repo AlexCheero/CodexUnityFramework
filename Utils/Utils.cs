@@ -10,7 +10,6 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
-using Object = UnityEngine.Object;
 
 #if UNITY_EDITOR
 using System.Reflection;
@@ -18,7 +17,7 @@ using System.Reflection;
 
 namespace CodexFramework.Utils
 {
-    static class ParticleSystemExtensions
+    public static class ParticleSystemExtensions
     {
         public static float GetTotalDuration(this ParticleSystem particleSystem)
         {
