@@ -11,7 +11,7 @@ namespace CodexFramework.Utils.Pools
         
         public void OnGet()
         {
-            _rigidbody.velocity = _rigidbody.angularVelocity = Vector3.zero;
+            _rigidbody.linearVelocity = _rigidbody.angularVelocity = Vector3.zero;
             _rigidbody.ResetInertiaTensor();
             _rigidbody.isKinematic = false;
             _rigidbody.WakeUp();
