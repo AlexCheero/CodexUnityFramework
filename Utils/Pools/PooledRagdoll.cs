@@ -91,8 +91,6 @@ namespace CodexFramework.Utils.Pools
             for (var i = 0; i < _rigidbodies.Length; i++)
             {
                 var rb = _rigidbodies[i];
-                rb.velocity = rb.angularVelocity = Vector3.zero;
-                rb.ResetInertiaTensor();
                 rb.isKinematic = false;
                 rb.WakeUp();
             }
@@ -103,6 +101,8 @@ namespace CodexFramework.Utils.Pools
             for (var i = 0; i < _rigidbodies.Length; i++)
             {
                 var rb = _rigidbodies[i];
+                rb.velocity = rb.angularVelocity = Vector3.zero;
+                rb.ResetInertiaTensor();
                 rb.isKinematic = true;
                 rb.Sleep();
             }
