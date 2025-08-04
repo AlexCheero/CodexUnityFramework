@@ -142,6 +142,8 @@ namespace CodexFramework.Utils
     {
         [SerializeField]
         private T _t;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T Check()
         {
             var result = _t;
@@ -149,6 +151,7 @@ namespace CodexFramework.Utils
             return result;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set(T t) => _t = t;
     }
 
