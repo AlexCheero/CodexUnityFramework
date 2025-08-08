@@ -52,5 +52,14 @@ namespace CodexFramework.Utils
         }
 
         protected virtual void Init() { }
+
+        void OnDestroy()
+        {
+            if (_dontDestroyOnLoad)
+                return;
+
+            Destroy(_instance.gameObject);
+            _instance = null;
+        }
     }
 }
