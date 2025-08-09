@@ -55,10 +55,6 @@ namespace CodexFramework.Utils
 
         void OnDestroy()
         {
-            if (_instance == null)
-                return;
-
-            Destroy(_instance.gameObject);
             _instance = null;
         }
     }
