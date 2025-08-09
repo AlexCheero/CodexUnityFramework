@@ -55,7 +55,7 @@ namespace CodexFramework.Utils
 
         void OnDestroy()
         {
-            if (_dontDestroyOnLoad || _instance == null)
+            if (_instance == null)
                 return;
 
             Destroy(_instance.gameObject);
