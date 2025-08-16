@@ -55,7 +55,8 @@ namespace CodexFramework.Utils
 
         void OnDestroy()
         {
-            _instance = null;
+            if (this == _instance)
+                _instance = null;
         }
     }
 }
