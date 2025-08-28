@@ -26,6 +26,7 @@ namespace CodexFramework.Netwroking
         public ushort id;
     }
 
+    public struct NetDirty : IComponent { }
     public struct NetDirtyMask : IComponent
     {
         public BitMask mask;
@@ -230,19 +231,26 @@ namespace CodexFramework.Netwroking
             }
         }
 
+        private static EcsFilter _dirtyFilter;
+
         public static void SerializeAll(EcsWorld world, BinaryWriter writer)
         {
             if (_pendingDelete.Length > 0)
                 FlushDelete(writer);
 
-            //TODO: get list of dirty entities. Probably with NetDirty tag
-            IEnumerable<int> dirtyEids = null;//NotImplemented!
-            var dirtyCount = dirtyEids.Count();
+            if (_dirtyFilter == null || _dirtyFilter.World != world)
+            {
+                _dirtyFilter = world.Filter()
+                    .With<NetDirty>()
+                    .Build();
+            }
+
+            var dirtyCount = _dirtyFilter.EntitiesCount;
             if (dirtyCount > 0)
             {
                 writer.Write((ushort)ENetCommand.Sync);
                 writer.Write(dirtyCount);
-                foreach (var eid in dirtyEids)
+                foreach (var eid in _dirtyFilter)
                     SerializeComponents(eid, world, writer);
             }
         }
