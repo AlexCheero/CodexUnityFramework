@@ -7,6 +7,11 @@ using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Netwroking
 {
+    public class NetException : Exception
+    {
+        public NetException(string msg) : base(msg) { }
+    }
+
     public enum ENetCommand
     {
         Sync,
@@ -103,9 +108,9 @@ namespace CodexFramework.Netwroking
         {
 #if DEBUG
             if (_netIdToEntityId.Length == ushort.MaxValue)
-                throw new Exception("Net Id overflow");
+                throw new NetException("Net Id overflow");
             if (HaveNetId(netId))
-                throw new Exception("Already have this net id");
+                throw new NetException("Already have this net id");
 #endif
             var eid = world.Create();
             if (eid >= _netIdToEntityId.Length)
@@ -131,14 +136,31 @@ namespace CodexFramework.Netwroking
         private static bool HaveNetId(ushort netId) =>
             netId < _netIdToEntityId.Length && !_netIdToEntityId[netId].IsNull();
 
-        public static void DeleteNetEntityByEid(int eid, EcsWorld world) =>
-            DeleteNetEntityByNetId(world.Get<NetId>(eid).id, world);
+        public static void DeleteNetEntityByEid(Entity entity, EcsWorld world)
+        {
+            var eid = entity.GetId();
+            var netId = world.Get<NetId>(eid).id;
+
+#if DEBUG
+            if (!HaveNetId(netId))
+                throw new NetException("no net id found to delete");
+            if (entity.Val != _netIdToEntityId[netId].Val)
+                throw new NetException("trying to delete invalid entity");
+#endif
+
+            DeleteNetEntityByNetId(netId, world);
+        }
 
         public static void DeleteNetEntityByNetId(ushort netId, EcsWorld world)
         {
             var last = _netIdToEntityId[^1];
             world.Get<NetId>(last.GetId()).id = netId;
             _netIdToEntityId.SwapRemoveAt(netId);
+
+#if DEBUG
+            if (!CheckNetIds(world))
+                throw new NetException("net ids desync after deletion");
+#endif
         }
 
         //TODO: serialize deletion for multiple entities
