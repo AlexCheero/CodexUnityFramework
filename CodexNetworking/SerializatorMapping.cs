@@ -3,7 +3,6 @@ using CodexECS;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Netwroking
@@ -27,17 +26,19 @@ namespace CodexFramework.Netwroking
     }
 
     public struct NetDirty : IComponent { }
-    public struct NetDirtyMask : IComponent
-    {
-        public BitMask mask;
-    }
 
     public struct NetDeleted : IComponent { }
 
-    public interface ISerializedComponent : IComponent
+    //crtp for enforcing ISerializedComponent to be IEquatable
+    public interface ISerializedComponent<T> : IComponent, IEquatable<T>
     {
         public void Serialize(BinaryWriter writer);
         public void Deserialize(BinaryReader reader);
+    }
+
+    public struct Snapshot<T> where T : struct, ISerializedComponent<T>
+    {
+        public T val;
     }
 
     public interface ISerializator
@@ -46,14 +47,38 @@ namespace CodexFramework.Netwroking
         public void Deserialize(int eid, EcsWorld world, BinaryReader reader);
     }
 
-    public class Serializator<T> : ISerializator where T : struct, ISerializedComponent
+    public class Serializator<T> : ISerializator where T : struct, ISerializedComponent<T>
     {
         public void Serialize(int eid, EcsWorld world, BinaryWriter writer)
         {
             var haveComponent = world.Have<T>(eid);
-            writer.Write(haveComponent);
+            var haveSnapshot = world.Have<Snapshot<T>>(eid);
+
             if (haveComponent)
-                world.Get<T>(eid).Serialize(writer);
+            {
+                var isDirty = false;
+                ref readonly var val = ref world.Get<T>(eid);
+                if (!haveSnapshot)
+                {
+                    world.Add(eid, new Snapshot<T> { val = val });
+                    isDirty = true;
+                }
+                else if (!val.Equals(world.Get<Snapshot<T>>(eid).val))
+                {
+                    isDirty = true;
+                }
+
+                if (isDirty)
+                {
+                    writer.Write(true);
+                    val.Serialize(writer);
+                }
+            }
+            else if (haveSnapshot)
+            {
+                world.Remove<Snapshot<T>>(eid);
+                writer.Write(false);
+            }
         }
 
         public void Deserialize(int eid, EcsWorld world, BinaryReader reader)
@@ -78,12 +103,11 @@ namespace CodexFramework.Netwroking
         private static Dictionary<Type, ISerializator> _serializators = new();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SerializeComponents(int eid, EcsWorld world, BinaryWriter writer)
+        public static void SerializeComponents(int eid, in BitMask mask, EcsWorld world, BinaryWriter writer)
         {
             writer.Write(world.Get<NetId>(eid).id);
-            ref readonly var dirtyMask = ref world.Get<NetDirtyMask>(eid).mask;
-            writer.Write((ushort)dirtyMask.SetBitsCount);
-            foreach (var componentId in dirtyMask)
+            writer.Write((ushort)mask.SetBitsCount);
+            foreach (var componentId in mask)
             {
                 writer.Write((ushort)componentId);
                 var serializator = GetSerializator(componentId);
@@ -94,8 +118,6 @@ namespace CodexFramework.Netwroking
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DeserializeComponents(EcsWorld world, BinaryReader reader)
         {
-            //TODO: what to do if there is no net components left on entity?
-
             var netId = reader.ReadUInt16();
             var eid = _netIdToEntityId.ContainsKey(netId)
                 ? _netIdToEntityId[netId].GetId()
@@ -107,6 +129,8 @@ namespace CodexFramework.Netwroking
                 var serializator = GetSerializator(componentId);
                 serializator.Deserialize(eid, world, reader);
             }
+
+            //TODO: log warning if there is no net components on entity
         }
 
         private static ushort _nextNetId;
@@ -132,9 +156,6 @@ namespace CodexFramework.Netwroking
             }
 
             var eid = AddNetEntity(world, newNetId);
-            //adding NetDirty here because CreateNetEntity is server method
-            //and AddNetEntity should be used explicitly only on client
-            world.Add<NetDirtyMask>(eid);
 
             return eid;
         }
@@ -233,7 +254,7 @@ namespace CodexFramework.Netwroking
 
         private static EcsFilter _dirtyFilter;
 
-        public static void SerializeAll(EcsWorld world, BinaryWriter writer)
+        public static void SerializeAll(in BitMask mask, EcsWorld world, BinaryWriter writer)
         {
             if (_pendingDelete.Length > 0)
                 FlushDelete(writer);
@@ -251,7 +272,7 @@ namespace CodexFramework.Netwroking
                 writer.Write((ushort)ENetCommand.Sync);
                 writer.Write(dirtyCount);
                 foreach (var eid in _dirtyFilter)
-                    SerializeComponents(eid, world, writer);
+                    SerializeComponents(eid, mask, world, writer);
             }
         }
 
