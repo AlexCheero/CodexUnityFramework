@@ -12,7 +12,8 @@ namespace CodexFramework.Netwroking
         public NetException(string msg) : base(msg) { }
     }
 
-    public enum ENetCommand
+    //TODO: do we need commands or we just could have same order of commands and number of arguments for each command?
+    public enum ENetCommand : ushort
     {
         Sync,
         Delete,
@@ -183,15 +184,17 @@ namespace CodexFramework.Netwroking
             EnqueueDeleteByNedId(netId, world);
         }
 
-        private static void FlushDelete()
+        private static void FlushDelete(BinaryWriter writer)
         {
-            //serialize number of deleted entities
+            writer.Write((ushort)ENetCommand.Delete);
+            writer.Write((ushort)_pendingDelete.Length);
 
             for (int i = 0; i < _pendingDelete.Length; i++)
             {
-                //serialize net ids
-                _netIdToEntityId.Remove(_pendingDelete[i]);
-                _freeIds.Add(_pendingDelete[i]);
+                var netId = _pendingDelete[i];
+                _netIdToEntityId.Remove(netId);
+                _freeIds.Add(netId);
+                writer.Write(netId);
             }
 
             _pendingDelete.Clear();
@@ -199,6 +202,33 @@ namespace CodexFramework.Netwroking
 
         //TODO: serialize deletion for multiple entities
         public static void DeserializeDeleteEntities(EcsWorld world, BinaryReader reader)
+        {
+            var count = reader.ReadUInt16();
+            for (int i = 0; i < count; i++)
+            {
+                var netId = reader.ReadUInt16();
+#if DEBUG
+                if (!_netIdToEntityId.ContainsKey(netId))
+                    throw new NetException($"no net Id {netId} found");
+#endif
+                var entity = _netIdToEntityId[netId];
+
+#if DEBUG
+                if (!world.IsEntityValid(entity))
+                    throw new NetException($"net entity with net Id {netId} is invalid");
+#endif
+
+                //TODO: abstract game specific components
+                //world.Add<DeadComponent>(entity.GetId());
+            }
+        }
+
+        public static void SerializeAll()
+        {
+
+        }
+
+        public static void DeserializeAll()
         {
 
         }
