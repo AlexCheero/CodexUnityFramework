@@ -26,10 +26,12 @@ namespace CodexFramework.Netwroking
         public ushort id;
     }
 
-    public struct NetDirty : IComponent
+    public struct NetDirtyMask : IComponent
     {
         public BitMask mask;
     }
+
+    public struct NetDeleted : IComponent { }
 
     public interface ISerializedComponent : IComponent
     {
@@ -67,7 +69,6 @@ namespace CodexFramework.Netwroking
             {
                 world.Remove<T>(eid);
             }
-
         }
     }
 
@@ -79,7 +80,7 @@ namespace CodexFramework.Netwroking
         public static void SerializeComponents(int eid, EcsWorld world, BinaryWriter writer)
         {
             writer.Write(world.Get<NetId>(eid).id);
-            ref readonly var dirtyMask = ref world.Get<NetDirty>(eid).mask;
+            ref readonly var dirtyMask = ref world.Get<NetDirtyMask>(eid).mask;
             writer.Write((ushort)dirtyMask.SetBitsCount);
             foreach (var componentId in dirtyMask)
             {
@@ -93,7 +94,6 @@ namespace CodexFramework.Netwroking
         public static void DeserializeComponents(EcsWorld world, BinaryReader reader)
         {
             //TODO: what to do if there is no net components left on entity?
-            //TODO: if there are some reactive systems on Add/Remove components, we should trigger them explicitly
 
             var netId = reader.ReadUInt16();
             var eid = _netIdToEntityId.ContainsKey(netId)
@@ -133,7 +133,7 @@ namespace CodexFramework.Netwroking
             var eid = AddNetEntity(world, newNetId);
             //adding NetDirty here because CreateNetEntity is server method
             //and AddNetEntity should be used explicitly only on client
-            world.Add<NetDirty>(eid);
+            world.Add<NetDirtyMask>(eid);
 
             return eid;
         }
@@ -226,8 +226,7 @@ namespace CodexFramework.Netwroking
                     throw new NetException($"net entity with net Id {netId} is invalid");
 #endif
 
-                //TODO: abstract game specific components
-                //world.Add<DeadComponent>(entity.GetId());
+                world.Add<NetDeleted>(entity.GetId());
             }
         }
 
@@ -236,6 +235,7 @@ namespace CodexFramework.Netwroking
             if (_pendingDelete.Length > 0)
                 FlushDelete(writer);
 
+            //TODO: get list of dirty entities. Probably with NetDirty tag
             IEnumerable<int> dirtyEids = null;//NotImplemented!
             var dirtyCount = dirtyEids.Count();
             if (dirtyCount > 0)
@@ -259,6 +259,8 @@ namespace CodexFramework.Netwroking
                     var dirtyCount = reader.ReadInt32();
                     for (var i = 0; i < dirtyCount; i++)
                         DeserializeComponents(world, reader);
+                    //for explicit reactive systems call after components added or removed on deserialization
+                    world.Unlock();
                     break;
             }
         }
