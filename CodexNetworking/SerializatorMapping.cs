@@ -3,6 +3,7 @@ using CodexECS;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Netwroking
@@ -12,7 +13,6 @@ namespace CodexFramework.Netwroking
         public NetException(string msg) : base(msg) { }
     }
 
-    //TODO: do we need commands or we just could have same order of commands and number of arguments for each command?
     public enum ENetCommand : ushort
     {
         Sync,
@@ -24,6 +24,11 @@ namespace CodexFramework.Netwroking
     public struct NetId : IComponent
     {
         public ushort id;
+    }
+
+    public struct NetDirty : IComponent
+    {
+        public BitMask mask;
     }
 
     public interface ISerializedComponent : IComponent
@@ -71,11 +76,12 @@ namespace CodexFramework.Netwroking
         private static Dictionary<Type, ISerializator> _serializators = new();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SerializeComponents(int eid, in BitMask components, EcsWorld world, BinaryWriter writer)
+        public static void SerializeComponents(int eid, EcsWorld world, BinaryWriter writer)
         {
             writer.Write(world.Get<NetId>(eid).id);
-            writer.Write((ushort)components.SetBitsCount);
-            foreach (var componentId in components)
+            ref readonly var dirtyMask = ref world.Get<NetDirty>(eid).mask;
+            writer.Write((ushort)dirtyMask.SetBitsCount);
+            foreach (var componentId in dirtyMask)
             {
                 writer.Write((ushort)componentId);
                 var serializator = GetSerializator(componentId);
@@ -125,11 +131,14 @@ namespace CodexFramework.Netwroking
             }
 
             var eid = AddNetEntity(world, newNetId);
-            
+            //adding NetDirty here because CreateNetEntity is server method
+            //and AddNetEntity should be used explicitly only on client
+            world.Add<NetDirty>(eid);
+
             return eid;
         }
 
-        public static int AddNetEntity(EcsWorld world, ushort netId)
+        private static int AddNetEntity(EcsWorld world, ushort netId)
         {
 #if DEBUG
             if (_netIdToEntityId.ContainsKey(netId))
@@ -200,7 +209,6 @@ namespace CodexFramework.Netwroking
             _pendingDelete.Clear();
         }
 
-        //TODO: serialize deletion for multiple entities
         public static void DeserializeDeleteEntities(EcsWorld world, BinaryReader reader)
         {
             var count = reader.ReadUInt16();
@@ -223,14 +231,36 @@ namespace CodexFramework.Netwroking
             }
         }
 
-        public static void SerializeAll()
+        public static void SerializeAll(EcsWorld world, BinaryWriter writer)
         {
+            if (_pendingDelete.Length > 0)
+                FlushDelete(writer);
 
+            IEnumerable<int> dirtyEids = null;//NotImplemented!
+            var dirtyCount = dirtyEids.Count();
+            if (dirtyCount > 0)
+            {
+                writer.Write((ushort)ENetCommand.Sync);
+                writer.Write(dirtyCount);
+                foreach (var eid in dirtyEids)
+                    SerializeComponents(eid, world, writer);
+            }
         }
 
-        public static void DeserializeAll()
+        public static void DeserializeAll(EcsWorld world, BinaryReader reader)
         {
-
+            var command = (ENetCommand)reader.ReadUInt16();
+            switch (command)
+            {
+                case ENetCommand.Delete:
+                    DeserializeDeleteEntities(world, reader);
+                    break;
+                case ENetCommand.Sync:
+                    var dirtyCount = reader.ReadInt32();
+                    for (var i = 0; i < dirtyCount; i++)
+                        DeserializeComponents(world, reader);
+                    break;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
