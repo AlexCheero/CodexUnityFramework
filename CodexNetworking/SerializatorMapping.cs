@@ -88,7 +88,7 @@ namespace CodexFramework.Netwroking
             //TODO: what to do if there is no net components left on entity?
 
             var netId = reader.ReadUInt16();
-            var eid = GetEntityFromNetId(netId).GetId();
+            var eid = _netIdToEntityId[netId].GetId();
             var componentsCount = reader.ReadUInt16();
             for (int i = 0; i < componentsCount; i++)
             {
@@ -98,69 +98,81 @@ namespace CodexFramework.Netwroking
             }
         }
 
+        private static ushort _nextNetId;
         public static int CreateNetEntity(EcsWorld world)
         {
-            var nextNetId = (ushort)_netIdToEntityId.Length;
-            return AddNetEntity(world, nextNetId);
+            var eid = AddNetEntity(world, _nextNetId);
+            _nextNetId++;
+            return eid;
         }
 
         public static int AddNetEntity(EcsWorld world, ushort netId)
         {
 #if DEBUG
-            if (_netIdToEntityId.Length == ushort.MaxValue)
+            if (_netIdToEntityId.Count == ushort.MaxValue)
                 throw new NetException("Net Id overflow");
-            if (HaveNetId(netId))
+            if (_netIdToEntityId.ContainsKey(netId))
                 throw new NetException("Already have this net id");
 #endif
             var eid = world.Create();
-            if (eid >= _netIdToEntityId.Length)
-                _netIdToEntityId.Resize(eid);
-            _netIdToEntityId.Add(world.GetById(eid));
+            _netIdToEntityId[netId] = world.GetById(eid);
             world.Add(eid, new NetId { id = netId });
 
             return eid;
         }
 
-        private static SimpleList<Entity> _netIdToEntityId;
+        private static Dictionary<ushort, Entity> _netIdToEntityId;
         static SerializatorMapping()
         {
             _netIdToEntityId = new();
-            //first element is always invalid, because net ids should start from 1
-            _netIdToEntityId.Add(EntityExtension.NullEntity);
+            _pendingDelete = new();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Entity GetEntityFromNetId(ushort netId) => _netIdToEntityId[netId];
+        private static SimpleList<ushort> _pendingDelete;
+        public static void EnqueueDeleteByNedId(ushort netId, EcsWorld world)
+        {
+#if DEBUG
+            var entity = _netIdToEntityId[netId];
+            var eid = entity.GetId();
+            if (!world.Have<NetId>(eid) || world.Get<NetId>(eid).id != netId)
+                throw new NetException("trying to delete invalid entity");
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool HaveNetId(ushort netId) =>
-            netId < _netIdToEntityId.Length && !_netIdToEntityId[netId].IsNull();
+            for (int i = 0; i < _pendingDelete.Length; i++)
+            {
+                if (_pendingDelete[i] == netId)
+                    throw new NetException("net id already pending delete");
+            }
+#endif
 
-        public static void DeleteNetEntityByEid(Entity entity, EcsWorld world)
+            _pendingDelete.Add(netId);
+        }
+
+        public static void EnqueueDelete(Entity entity, EcsWorld world)
         {
             var eid = entity.GetId();
             var netId = world.Get<NetId>(eid).id;
 
 #if DEBUG
-            if (!HaveNetId(netId))
+            if (!_netIdToEntityId.ContainsKey(netId))
                 throw new NetException("no net id found to delete");
             if (entity.Val != _netIdToEntityId[netId].Val)
                 throw new NetException("trying to delete invalid entity");
 #endif
 
-            DeleteNetEntityByNetId(netId, world);
+            EnqueueDeleteByNedId(netId, world);
         }
 
-        public static void DeleteNetEntityByNetId(ushort netId, EcsWorld world)
+        private static void FlushDelete()
         {
-            var last = _netIdToEntityId[^1];
-            world.Get<NetId>(last.GetId()).id = netId;
-            _netIdToEntityId.SwapRemoveAt(netId);
+            //serialize number of deleted entities
 
-#if DEBUG
-            if (!CheckNetIds(world))
-                throw new NetException("net ids desync after deletion");
-#endif
+            for (int i = 0; i < _pendingDelete.Length; i++)
+            {
+                //serialize net ids
+                _netIdToEntityId.Remove(_pendingDelete[i]);
+            }
+
+            _pendingDelete.Clear();
         }
 
         //TODO: serialize deletion for multiple entities
@@ -185,9 +197,10 @@ namespace CodexFramework.Netwroking
 #if DEBUG
         private static bool CheckNetIds(EcsWorld world)
         {
-            for (int i = 1; i < _netIdToEntityId.Length; i++)
+            foreach (var pair in _netIdToEntityId)
             {
-                var entity = _netIdToEntityId[i];
+                var netId = pair.Key;
+                var entity = pair.Value;
                 if (!world.IsEntityValid(entity))
                     return false;
 
@@ -195,7 +208,7 @@ namespace CodexFramework.Netwroking
                 if (!world.Have<NetId>(eid))
                     return false;
 
-                if (world.Get<NetId>(eid).id != i)
+                if (world.Get<NetId>(eid).id != netId)
                     return false;
             }
 
