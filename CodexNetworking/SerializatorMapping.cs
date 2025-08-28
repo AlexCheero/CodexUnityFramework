@@ -86,9 +86,12 @@ namespace CodexFramework.Netwroking
         public static void DeserializeComponents(EcsWorld world, BinaryReader reader)
         {
             //TODO: what to do if there is no net components left on entity?
+            //TODO: if there are some reactive systems on Add/Remove components, we should trigger them explicitly
 
             var netId = reader.ReadUInt16();
-            var eid = _netIdToEntityId[netId].GetId();
+            var eid = _netIdToEntityId.ContainsKey(netId)
+                ? _netIdToEntityId[netId].GetId()
+                : AddNetEntity(world, netId);
             var componentsCount = reader.ReadUInt16();
             for (int i = 0; i < componentsCount; i++)
             {
@@ -99,18 +102,35 @@ namespace CodexFramework.Netwroking
         }
 
         private static ushort _nextNetId;
+        private static SimpleList<ushort> _freeIds;
         public static int CreateNetEntity(EcsWorld world)
         {
-            var eid = AddNetEntity(world, _nextNetId);
-            _nextNetId++;
+            ushort newNetId;
+            var freeIdsLength = _freeIds.Length;
+            if (freeIdsLength > 0)
+            {
+                var lastFreeIdsIdx = freeIdsLength - 1;
+                newNetId = _freeIds[lastFreeIdsIdx];
+                _freeIds.SwapRemoveAt(lastFreeIdsIdx);
+            }
+            else
+            {
+#if DEBUG
+                if (_nextNetId == ushort.MaxValue)
+                    throw new NetException("Net Id overflow");
+#endif
+                newNetId = _nextNetId;
+                _nextNetId++;
+            }
+
+            var eid = AddNetEntity(world, newNetId);
+            
             return eid;
         }
 
         public static int AddNetEntity(EcsWorld world, ushort netId)
         {
 #if DEBUG
-            if (_netIdToEntityId.Count == ushort.MaxValue)
-                throw new NetException("Net Id overflow");
             if (_netIdToEntityId.ContainsKey(netId))
                 throw new NetException("Already have this net id");
 #endif
@@ -126,6 +146,7 @@ namespace CodexFramework.Netwroking
         {
             _netIdToEntityId = new();
             _pendingDelete = new();
+            _freeIds = new();
         }
 
         private static SimpleList<ushort> _pendingDelete;
@@ -170,6 +191,7 @@ namespace CodexFramework.Netwroking
             {
                 //serialize net ids
                 _netIdToEntityId.Remove(_pendingDelete[i]);
+                _freeIds.Add(_pendingDelete[i]);
             }
 
             _pendingDelete.Clear();
