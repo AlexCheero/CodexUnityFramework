@@ -5,16 +5,16 @@ namespace CodexFramework.Netwroking.Serialization
 {
     public class ClientConnection
     {
-        public BinaryWriter Writer;
-        public BinaryReader Reader;
-
         public struct EntityComponents
         {
             public Entity E;
             public BitMask Components;
         }
 
+        public BinaryWriter Writer;
+        public BinaryReader Reader;
         public SparseSet<EntityComponents> Entities;
+        public Entity ClientEntity;
 
         public ClientConnection()
         {

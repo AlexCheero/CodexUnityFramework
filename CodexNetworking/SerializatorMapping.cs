@@ -1,25 +1,16 @@
 
 using CodexECS;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Netwroking.Serialization
 {
     public static class SerializatorMapping
     {
-        private static Dictionary<Type, IComponentSerializator> _serializators;
-
         public static readonly BitMask SerializedComponents;
-        public static void Init(bool force = false)
+        public static void Init(Type serializatorGenericType, bool force = false)
         {
-            if (_serializators != null && !force)
-                return;
-
-            _serializators = new();
-
             // Get all currently loaded assemblies
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
@@ -44,37 +35,23 @@ namespace CodexFramework.Netwroking.Serialization
                     // Look at all interfaces this type implements
                     foreach (var iface in type.GetInterfaces())
                     {
-                        if (iface.IsGenericType &&
-                            iface.GetGenericTypeDefinition() == typeof(ISerializedComponent<>))
+                        if (!iface.IsGenericType ||
+                            iface.GetGenericTypeDefinition() != typeof(ISerializedComponent<>))
                         {
-                            // Check CRTP condition: ISerializedComponent<MyComponent>
-                            var genericArg = iface.GetGenericArguments()[0];
-                            if (genericArg == type)
-                            {
-                                var componentId = ComponentMapping.GetIdForType(type);
-                                SerializedComponents.Set(componentId);
-                                var serializatorClosedType = typeof(ComponentSerializator<>).MakeGenericType(type);
-                                _serializators[type] =
-                                    (IComponentSerializator)Activator.CreateInstance(serializatorClosedType);
-                            }
+                            continue;
                         }
+
+                        // Check CRTP condition: ISerializedComponent<MyComponent>
+                        var genericArg = iface.GetGenericArguments()[0];
+                        if (genericArg != type)
+                            continue;
+                        
+                        var componentId = ComponentMapping.GetIdForType(type);
+                        //TODO: make sure that component ids is equal on both client and server
+                        SerializedComponents.Set(componentId);
                     }
                 }
             }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static IComponentSerializator GetSerializator(int componentId)
-        {
-            var type = ComponentMapping.GetTypeForId(componentId);
-            //should be already inited
-            //if (!_serializators.ContainsKey(type))
-            //{
-            //    var closedType = typeof(Serializator<>).MakeGenericType(type);
-            //    _serializators[type] = (ISerializator)Activator.CreateInstance(closedType);
-            //}
-
-            return _serializators[type];
         }
     }
 }

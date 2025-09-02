@@ -1,19 +1,18 @@
-﻿
-using CodexECS;
+﻿using CodexECS;
 using System.IO;
 using System.Runtime.CompilerServices;
 
-namespace CodexFramework.Netwroking.Serialization
+namespace CodexFramework.Netwroking.Serialization.Server
 {
     public interface IComponentSerializator
     {
         public void Serialize(int eid, EcsWorld world, BinaryWriter writer);
-        public void Deserialize(int eid, EcsWorld world, BinaryReader reader);
         public void UpdateSnapshot(int eid, EcsWorld world);
         public bool IsDirty(int eid, EcsWorld world);
     }
 
-    public class ComponentSerializator<T> : IComponentSerializator where T : struct, ISerializedComponent<T>
+    public class ComponentSerializator<T> : IComponentSerializator
+        where T : struct, ISerializedComponent<T>
     {
         public void Serialize(int eid, EcsWorld world, BinaryWriter writer)
         {
@@ -33,22 +32,6 @@ namespace CodexFramework.Netwroking.Serialization
             else if (haveSnapshot)
             {
                 writer.Write(false);
-            }
-        }
-
-        public void Deserialize(int eid, EcsWorld world, BinaryReader reader)
-        {
-            var haveRemote = reader.ReadBoolean();
-            var haveLocal = world.Have<T>(eid);
-            if (haveRemote)
-            {
-                if (!haveLocal)
-                    world.Add<T>(eid);
-                world.Get<T>(eid).Deserialize(reader);
-            }
-            else if (haveLocal)
-            {
-                world.Remove<T>(eid);
             }
         }
 
