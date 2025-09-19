@@ -6,9 +6,9 @@ using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Netwroking.Serialization.Server
 {
-    public static class ServerSerializatorMapping
+    public static class ServerSerializerMapping
     {
-        private static Dictionary<Type, IComponentSerializator> _serializators;
+        private static Dictionary<Type, IComponentSerializer> _serializators;
 
         public static void Init(bool force = false)
         {
@@ -17,22 +17,22 @@ namespace CodexFramework.Netwroking.Serialization.Server
 
             _serializators = new();
 
-            SerializatorMapping.Init(typeof(ComponentSerializator<>), force);
-            foreach (var componentId in SerializatorMapping.SerializedComponents)
+            SerializerMapping.Init(typeof(ComponentSerializer<>), force);
+            foreach (var componentId in SerializerMapping.SerializedComponents)
             {
                 var type = ComponentMapping.GetTypeForId(componentId);
-                var serializatorClosedType = typeof(ComponentSerializator<>).MakeGenericType(type);
+                var serializatorClosedType = typeof(ComponentSerializer<>).MakeGenericType(type);
                 _serializators[type] =
-                    (IComponentSerializator)Activator.CreateInstance(serializatorClosedType);
+                    (IComponentSerializer)Activator.CreateInstance(serializatorClosedType);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static IComponentSerializator GetSerializator(int componentId)
+        public static IComponentSerializer GetSerializer(int componentId)
         {
 #if DEBUG
             if (_serializators == null)
-                throw new NetException($"{nameof(ServerSerializatorMapping)} is not inited");
+                throw new NetException($"{nameof(ServerSerializerMapping)} is not inited");
 #endif
 
             var type = ComponentMapping.GetTypeForId(componentId);

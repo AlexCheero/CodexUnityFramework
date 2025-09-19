@@ -6,13 +6,13 @@ using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Netwroking.Serialization.Client
 {
-    public class ClientSerializator : Serializator
+    public class ClientSerializer : Serializer
     {
         private List<byte> _inputBuffer;
 
-        public ClientSerializator() : base()
+        public ClientSerializer() : base()
         {
-            ClientSerializatorMapping.Init();
+            ClientSerializerMapping.Init();
 
             _inputBuffer = new();
         }
@@ -60,8 +60,8 @@ namespace CodexFramework.Netwroking.Serialization.Client
                 for (int i = 0; i < componentsCount; i++)
                 {
                     var componentId = reader.ReadUInt16();
-                    var serializator = ClientSerializatorMapping.GetSerializator(componentId);
-                    serializator.Deserialize(eid, world, reader);
+                    var deserializer = ClientSerializerMapping.GetDeserializer(componentId);
+                    deserializer.Deserialize(eid, world, reader);
                 }
 
 #if DEBUG
@@ -77,6 +77,7 @@ namespace CodexFramework.Netwroking.Serialization.Client
             }
         }
 
+        //TODO: add input payload (e.g. mouse position)
         public bool QueueInput(byte command)
         {
             if (_inputBuffer.Count >= byte.MaxValue)
@@ -92,7 +93,7 @@ namespace CodexFramework.Netwroking.Serialization.Client
             var writer = connection.Writer;
             writer.Write((byte)_inputBuffer.Count);
             for (int i = 0; i < _inputBuffer.Count; i++)
-                writer.Write((byte)_inputBuffer[i]);
+                writer.Write(_inputBuffer[i]);
             _inputBuffer.Clear();
         }
     }

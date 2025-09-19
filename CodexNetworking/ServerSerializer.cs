@@ -1,19 +1,18 @@
 ﻿using CodexECS;
-using System;
 using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Netwroking.Serialization.Server
 {
-    public class ServerSerializator : Serializator
+    public class ServerSerializer : Serializer
     {
         private ushort _nextNetId;
         private SimpleList<ushort> _freeIds;
         private EcsFilter _netIdsFilter;
 
-        public ServerSerializator(EcsWorld world) : base()
+        public ServerSerializer(EcsWorld world) : base()
         {
-            ServerSerializatorMapping.Init();
+            ServerSerializerMapping.Init();
 
             _freeIds = new();
 
@@ -24,9 +23,9 @@ namespace CodexFramework.Netwroking.Serialization.Server
 
         public void UpdateSnapshots(EcsWorld world)
         {
-            foreach (var netComponentId in SerializatorMapping.SerializedComponents)
+            foreach (var netComponentId in SerializerMapping.SerializedComponents)
             {
-                var serializator = ServerSerializatorMapping.GetSerializator(netComponentId);
+                var serializator = ServerSerializerMapping.GetSerializer(netComponentId);
                 foreach (var eid in _netIdsFilter)
                 {
                     serializator.UpdateSnapshot(eid, world);
@@ -36,6 +35,7 @@ namespace CodexFramework.Netwroking.Serialization.Server
 
         public void Serialize(EcsWorld world, ClientConnection connection)
         {
+            //TODO: write entities count!!!
             var entityTuples = connection.Entities;
             for (int i = 0; i < entityTuples.Length; i++)
             {
@@ -65,6 +65,7 @@ namespace CodexFramework.Netwroking.Serialization.Server
                 return;
             }
 
+            //TODO: is never used!!!
             if (!world.Have<NetDirty>(eid))
                 return;
 
@@ -83,12 +84,12 @@ namespace CodexFramework.Netwroking.Serialization.Server
             short componentsCount = 0;
             foreach (var componentId in componentsMask)
             {
-                var serializator = ServerSerializatorMapping.GetSerializator(componentId);
-                if (!serializator.IsDirty(eid, world))
+                var serializer = ServerSerializerMapping.GetSerializer(componentId);
+                if (!serializer.IsDirty(eid, world))
                     continue;
 
                 writer.Write((ushort)componentId);
-                serializator.Serialize(eid, world, writer);
+                serializer.Serialize(eid, world, writer);
                 componentsCount++;
             }
 
@@ -133,14 +134,15 @@ namespace CodexFramework.Netwroking.Serialization.Server
             var eid = connection.ClientEntity.GetId();
 #if DEBUG
             if (!world.Have<ClientNetInput>(eid))
-                throw new NetException($"{nameof(ServerSerializator)}.{nameof(DeserializeClientInput)}: " +
+                throw new NetException($"{nameof(ServerSerializer)}.{nameof(DeserializeClientInput)}: " +
                     $"player entity have no {nameof(ClientNetInput)} component");
 #endif
             var inputBuffer = world.Get<ClientNetInput>(eid).buffer;
 
 #if DEBUG
+            //TODO: clean input buffer somewhere
             if (inputBuffer.Count > 0)
-                throw new NetException($"{nameof(ServerSerializator)}.{nameof(DeserializeClientInput)}: " +
+                throw new NetException($"{nameof(ServerSerializer)}.{nameof(DeserializeClientInput)}: " +
                     $"{nameof(inputBuffer)} shoud be empty at this point");
 #endif
 

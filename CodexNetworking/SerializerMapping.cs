@@ -6,7 +6,7 @@ using System.Reflection;
 
 namespace CodexFramework.Netwroking.Serialization
 {
-    public static class SerializatorMapping
+    public static class SerializerMapping
     {
         public static readonly BitMask SerializedComponents;
         public static void Init(Type serializatorGenericType, bool force = false)

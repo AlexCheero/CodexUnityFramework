@@ -36,5 +36,6 @@ namespace CodexFramework.Netwroking.Serialization
         public void SyncComponent(int eid, int componentId) => Entities[eid].Components.Set(componentId);
         public void SyncComponents(int eid, in BitMask mask) => Entities[eid].Components.Set(mask);
         public void UnsyncComponent(int eid, int componentId) => Entities[eid].Components.Unset(componentId);
+        public void UnsyncComponent(int eid, in BitMask mask) => Entities[eid].Components.Unset(mask);
     }
 }

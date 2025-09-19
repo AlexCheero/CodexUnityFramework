@@ -3,12 +3,12 @@ using System.IO;
 
 namespace CodexFramework.Netwroking.Serialization.Client
 {
-    public interface IComponentDeserializator
+    public interface IComponentDeserializer
     {
         public void Deserialize(int eid, EcsWorld world, BinaryReader reader);
     }
 
-    public class ComponentDeserializator<T> : IComponentDeserializator
+    public class ComponentDeserializer<T> : IComponentDeserializer
         where T : struct, ISerializedComponent<T>
     {
         public void Deserialize(int eid, EcsWorld world, BinaryReader reader)

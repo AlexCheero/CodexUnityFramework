@@ -3,12 +3,12 @@ using System.Collections.Generic;
 
 namespace CodexFramework.Netwroking.Serialization
 {
-    public abstract class Serializator
+    public abstract class Serializer
     {
         protected Dictionary<ushort, Entity> _netIdToEntity;
         protected Dictionary<int, ushort> _entityIdToNetId;
 
-        public Serializator()
+        public Serializer()
         {
             _netIdToEntity = new();
             _entityIdToNetId = new();
@@ -37,7 +37,6 @@ namespace CodexFramework.Netwroking.Serialization
 #if DEBUG
         //TODO: add checks
         //TODO: cover use cases: Add, Remove, Create, Delete, Sync
-        //TODO: add client commands
         protected bool CheckNetIds(EcsWorld world)
         {
             foreach (var pair in _netIdToEntity)
