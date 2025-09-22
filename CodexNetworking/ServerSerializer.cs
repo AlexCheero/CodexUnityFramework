@@ -35,8 +35,8 @@ namespace CodexFramework.Netwroking.Serialization.Server
 
         public void Serialize(EcsWorld world, ClientConnection connection)
         {
-            //TODO: write entities count!!!
             var entityTuples = connection.Entities;
+            connection.Writer.Write(entityTuples.Length);
             for (int i = 0; i < entityTuples.Length; i++)
             {
                 var tuple = entityTuples.GetNthValue(i);
