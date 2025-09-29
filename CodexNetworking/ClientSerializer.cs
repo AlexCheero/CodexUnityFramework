@@ -3,19 +3,13 @@ using CodexECS;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
+using Unity.VisualScripting;
 
 namespace CodexFramework.Netwroking.Serialization.Client
 {
     public class ClientSerializer : Serializer
     {
-        private List<byte> _inputBuffer;
-
-        public ClientSerializer() : base()
-        {
-            ClientSerializerMapping.Init();
-
-            _inputBuffer = new();
-        }
+        public ClientSerializer() : base() => ClientSerializerMapping.Init();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(EcsWorld world, ServerConnection connection)
@@ -77,24 +71,19 @@ namespace CodexFramework.Netwroking.Serialization.Client
             }
         }
 
+        public int _inputMask;
         //TODO: add input payload (e.g. mouse position)
-        public bool QueueInput(byte command)
+        public void QueueInput(int command)
         {
-            if (_inputBuffer.Count >= byte.MaxValue)
-                return false;
-            
-            _inputBuffer.Add(command);
-            
-            return true;
+            _inputMask |= 1 << command;
         }
 
+        //TODO: write only if mask was changed (but for that we should have guaranteed transport or heartbeat)
         public void FlushInput(ServerConnection connection)
         {
             var writer = connection.Writer;
-            writer.Write((byte)_inputBuffer.Count);
-            for (int i = 0; i < _inputBuffer.Count; i++)
-                writer.Write(_inputBuffer[i]);
-            _inputBuffer.Clear();
+            writer.Write(_inputMask);
+            _inputMask = 0;
         }
     }
 }

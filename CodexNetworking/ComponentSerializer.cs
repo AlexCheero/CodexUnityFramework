@@ -24,7 +24,7 @@ namespace CodexFramework.Netwroking.Serialization.Server
             var haveComponent = world.Have<T>(eid);
             var haveSnapshot = world.Have<Snapshot<T>>(eid) && world.Get<Snapshot<T>>(eid).val.HasValue;
 
-            //TODO: IsDirty works implicitly, looks like we could skip both if branches
+            //TODO: because IsDirty works implicitly, it looks like we could skip both if branches
             if (haveComponent)
             {
                 writer.Write(true);

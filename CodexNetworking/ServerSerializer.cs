@@ -129,6 +129,7 @@ namespace CodexFramework.Netwroking.Serialization.Server
             return entity;
         }
 
+        //TODO: try to implement input delay
         public void DeserializeClientInput(EcsWorld world, ClientConnection connection)
         {
             var eid = connection.ClientEntity.GetId();
@@ -137,18 +138,8 @@ namespace CodexFramework.Netwroking.Serialization.Server
                 throw new NetException($"{nameof(ServerSerializer)}.{nameof(DeserializeClientInput)}: " +
                     $"player entity have no {nameof(ClientNetInput)} component");
 #endif
-            var inputBuffer = world.Get<ClientNetInput>(eid).buffer;
-
-#if DEBUG
-            //TODO: clean input buffer somewhere
-            if (inputBuffer.Count > 0)
-                throw new NetException($"{nameof(ServerSerializer)}.{nameof(DeserializeClientInput)}: " +
-                    $"{nameof(inputBuffer)} shoud be empty at this point");
-#endif
-
-            var count = connection.Reader.ReadByte();
-            for (int i = 0; i < count; i++)
-                inputBuffer.Add(connection.Reader.ReadByte());
+            ref var inputComponent = ref world.Get<ClientNetInput>(eid);
+            inputComponent.mask = connection.Reader.ReadInt32();
         }
     }
 }
