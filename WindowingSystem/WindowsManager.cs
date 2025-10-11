@@ -8,6 +8,8 @@ public abstract class WindowsManager<T> : MonoBehaviour where T : Enum
     
     private Stack<WindowBehaviour<T>> _windowsStack;
 
+    public bool IsAnyOpened => _windowsStack.Count > 0;
+
     private void Awake()
     {
         _windowsStack = new();
@@ -36,6 +38,9 @@ public abstract class WindowsManager<T> : MonoBehaviour where T : Enum
     
     public void ShowWindow(T windowType)
     {
+        if (_windowsStack.TryPeek(out var lastWindow))
+            lastWindow.Hide();
+        
         var window = _windows[windowType];
         window.transform.SetAsLastSibling();
         window.Canvas.sortingOrder = _sortingOrder;
@@ -59,6 +64,8 @@ public abstract class WindowsManager<T> : MonoBehaviour where T : Enum
         
         if (_windowsStack.Count == 0)
             OnLastWindowClosed();
+        else
+            _windowsStack.Peek().Show();
         
 #if DEBUG
         if (_sortingOrder < 0)
