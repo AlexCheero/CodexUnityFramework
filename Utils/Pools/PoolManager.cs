@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,7 +5,7 @@ namespace CodexFramework.Utils.Pools
 {
     public class PoolManager : Singleton<PoolManager>
     {
-        private readonly List<ObjectPool> _poolsList = new List<ObjectPool>();
+        private readonly Dictionary<PoolItem, ObjectPool> _poolsList = new();
 
         protected override void Init()
         {
@@ -20,33 +19,9 @@ namespace CodexFramework.Utils.Pools
         public ObjectPool GetByPrototype(IPoolableBehaviour prototype, int createIfNotFoundWithSize) => GetByPrototype(prototype.Item, createIfNotFoundWithSize);
         public ObjectPool GetByPrototype(PoolItem prototype, int createIfNotFoundWithSize)
         {
-            ObjectPool pool = null;
-            foreach (var p in _poolsList)
-            {
-                if (p.PrototypeGO == prototype.gameObject)
-                {
-                    pool = p;
-                    break;
-                }
-            }
-
-            if (pool != null)
-                return pool;
-
-            _poolsList.Clear();
-            _poolsList.AddRange(FindObjectsOfType<ObjectPool>());
-
-            foreach (var p in _poolsList)
-            {
-                if (p.PrototypeGO == prototype.gameObject)
-                {
-                    pool = p;
-                    break;
-                }
-            }
-            if (pool == null)
-                pool = CreatePool(prototype, createIfNotFoundWithSize);
-            return pool;
+            if (!_poolsList.ContainsKey(prototype))
+                _poolsList[prototype] = CreatePool(prototype, createIfNotFoundWithSize);
+            return _poolsList[prototype];
         }
 
         private ObjectPool CreatePool(PoolItem prototype, int createIfNotFoundWithSize)
@@ -56,7 +31,7 @@ namespace CodexFramework.Utils.Pools
             {
                 pool = new GameObject(prototype.name + "Pool").AddComponent<ObjectPool>();
                 pool.Init(createIfNotFoundWithSize, prototype);
-                _poolsList.Add(pool);
+                _poolsList.Add(prototype, pool);
             }
 
             return pool;
