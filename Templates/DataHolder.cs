@@ -111,6 +111,8 @@ namespace CodexFramework.Templates
 
             var json = JsonConvert.SerializeObject(_userDataDict);
             PlayerPrefs.SetString(Constants.UserDataKey, json);
+            
+            PlayerPrefs.Save();
         }
     }
 }
