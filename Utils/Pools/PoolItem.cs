@@ -29,6 +29,8 @@ namespace CodexFramework.Utils.Pools
         
         [SerializeField]
         private ObjectPool _pool;
+        public ObjectPool Pool => _pool;
+        
         [SerializeField]
         private int _idx;
 

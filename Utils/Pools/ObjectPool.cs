@@ -18,6 +18,7 @@ namespace CodexFramework.Utils.Pools
         //TODO: turn into changeable parameter
         private int GrowPerFrame => 1;
 
+        public PoolItem Prototype => _prototype;
         public GameObject PrototypeGO => _prototype.gameObject;
 
         public void Init(int initialCount, PoolItem prototype)
