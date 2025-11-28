@@ -610,6 +610,9 @@ namespace CodexFramework.Utils
             return combinedMesh;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector3 FindClosestPoint(this Collider a, Collider b) => a.ClosestPoint(b.ClosestPoint(a.transform.position));
+
 #if DEBUG
         public static GameObject CreateDebugIndicatorObject(string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
             => CreateDebugIndicatorObject(Color.cyan, name, primitive, scale);
