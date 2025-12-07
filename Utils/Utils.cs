@@ -230,6 +230,19 @@ namespace CodexFramework.Utils
 
     public static class Utils
     {
+        public static int GetMask(params int[] layers)
+        {
+            int mask = 0;
+            for (var i = 0; i < layers.Length; i++)
+            {
+                var layer = layers[i];
+                if (layer != -1)
+                    mask |= 1 << layer;
+            }
+
+            return mask;
+        }
+        
         public static void SwitchRBPhysics(this Rigidbody rb, bool on)
         {
             rb.useGravity = on;
