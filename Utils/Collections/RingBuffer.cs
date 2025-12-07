@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Utils.Collections
@@ -68,10 +69,35 @@ namespace CodexFramework.Utils.Collections
         public void Clear(bool full = false)
         {
             _start = _count = 0;
-            if (!full)
-                return;
-            for (int i =  0; i < _buffer.Length; i++)
-                _buffer[i] = default;
+            if (full)
+            {
+                for (int i = 0; i < _buffer.Length; i++)
+                    _buffer[i] = default;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void RemoveAt(int idx)
+        {
+            if (idx < 0 || idx >= _count)
+                throw new IndexOutOfRangeException();
+            
+            this[idx] = default;
+            if (idx > _count / 2)
+            {
+                //move backwards
+                for (int i = idx; i < _count; i++)
+                    this[i] = this[i + 1];
+            }
+            else
+            {
+                //move forward
+                for (int i = idx; i > 0; i--)
+                    this[i] = this[i - 1];
+                _start = (_start + 1) % _buffer.Length;
+            }
+            
+            _count--;
         }
     }
 }
