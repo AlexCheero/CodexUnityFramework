@@ -99,5 +99,25 @@ namespace CodexFramework.Utils.Collections
             
             _count--;
         }
+        
+        public struct Enumerator
+        {
+            private readonly RingBuffer<T> _buffer;
+            private int _index;
+            public Enumerator(RingBuffer<T> list)
+            {
+                _buffer = list;
+                _index = -1;
+            }
+            public bool MoveNext()
+            {
+                _index++;
+                return _index < _buffer.Count;
+            }
+            public void Reset() => _index = -1;
+            public ref T Current => ref _buffer[_index];
+        }
+
+        public Enumerator GetEnumerator() => new Enumerator(this);
     }
 }
