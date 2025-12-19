@@ -19,6 +19,21 @@ namespace CodexFramework.Utils
 {
     public static class UtilityMethods
     {
+        public static void GetControllerCapsule(
+            CharacterController controller,
+            out Vector3 p1,
+            out Vector3 p2,
+            out float radius)
+        {
+            radius = controller.radius;
+            var center = controller.transform.TransformPoint(controller.center);
+            var height = Mathf.Max(controller.height, radius * 2f);
+            var halfHeight = height * 0.5f - radius;
+            var up = controller.transform.up;
+            p1 = center + up * halfHeight;
+            p2 = center - up * halfHeight;
+        }
+        
         public static int GetMask(params int[] layers)
         {
             int mask = 0;
@@ -259,6 +274,9 @@ namespace CodexFramework.Utils
         private static readonly Collider[] _overlapBuffer = new Collider[64];
         public static (Collider[], int) OverlapSphereNonAlloc(Vector3 position, float radius, int layerMask) =>
             (_overlapBuffer, Physics.OverlapSphereNonAlloc(position, radius, _overlapBuffer, layerMask));
+        
+        public static (Collider[], int) OverlapCapsuleNonAlloc(Vector3 point0, Vector3 point1, float radius, int layerMask) =>
+            (_overlapBuffer, Physics.OverlapCapsuleNonAlloc(point0, point1, radius, _overlapBuffer, layerMask));
 
         public static bool GetTouchPosition(out Vector3 position)
         {
