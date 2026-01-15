@@ -9,6 +9,7 @@ using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.TextCore.Text;
 using UnityEngine.UI;
 
 #if UNITY_EDITOR
@@ -19,21 +20,6 @@ namespace CodexFramework.Utils
 {
     public static class UtilityMethods
     {
-        public static void GetControllerCapsule(
-            CharacterController controller,
-            out Vector3 p1,
-            out Vector3 p2,
-            out float radius)
-        {
-            radius = controller.radius;
-            var center = controller.transform.TransformPoint(controller.center);
-            var height = Mathf.Max(controller.height, radius * 2f);
-            var halfHeight = height * 0.5f - radius;
-            var up = controller.transform.up;
-            p1 = center + up * halfHeight;
-            p2 = center - up * halfHeight;
-        }
-        
         public static int GetMask(params int[] layers)
         {
             int mask = 0;
@@ -233,6 +219,7 @@ namespace CodexFramework.Utils
         }
 
         private static RaycastHit[] _castBuffer = new RaycastHit[32];
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (RaycastHit[], int) RayCastNonAlloc(
             Ray ray,
             float maxDistance,
@@ -245,6 +232,7 @@ namespace CodexFramework.Utils
             return (_castBuffer, num);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (RaycastHit[], int) RayCastNonAlloc(
             Vector3 origin,
             Vector3 direction,
@@ -258,11 +246,14 @@ namespace CodexFramework.Utils
             return (_castBuffer, num);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (RaycastHit[], int) SphereCastNonAlloc(
             Ray ray,
             float radius,
             float maxDistance,
             int layerMask) => SphereCastNonAlloc(ray.origin, radius, ray.direction, maxDistance, layerMask);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (RaycastHit[], int) SphereCastNonAlloc(
             Vector3 origin,
             float radius,
@@ -271,12 +262,68 @@ namespace CodexFramework.Utils
             int layerMask) =>
             (_castBuffer, Physics.SphereCastNonAlloc(origin, radius, direction, _castBuffer, maxDistance, layerMask));
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static (RaycastHit[], int) CapsuleCastNonAlloc(CapsuleCollider capsule, Vector3 direction,
+            float maxDistance, int layerMask)
+        {
+            var (p0, p1, radius) = GetCapsuleDimensions(capsule);
+            return CapsuleCastNonAlloc(p0, p1, radius, direction, maxDistance, layerMask);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static (RaycastHit[], int) CapsuleCastNonAlloc(
+            Vector3 point1,
+            Vector3 point2,
+            float radius,
+            Vector3 direction,
+            float maxDistance,
+            int layerMask) =>
+            (_castBuffer, Physics.CapsuleCastNonAlloc(point1, point2, radius, direction, _castBuffer, maxDistance, layerMask));
+
         private static readonly Collider[] _overlapBuffer = new Collider[64];
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (Collider[], int) OverlapSphereNonAlloc(Vector3 position, float radius, int layerMask) =>
             (_overlapBuffer, Physics.OverlapSphereNonAlloc(position, radius, _overlapBuffer, layerMask));
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static (Collider[], int) OverlapCapsuleNonAlloc(CharacterController controller, int layerMask)
+        {
+            var (p0, p1, radius) = GetCapsuleDimensions(controller);
+            return (_overlapBuffer, Physics.OverlapCapsuleNonAlloc(p0, p1, radius, _overlapBuffer, layerMask));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (Collider[], int) OverlapCapsuleNonAlloc(Vector3 point0, Vector3 point1, float radius, int layerMask) =>
             (_overlapBuffer, Physics.OverlapCapsuleNonAlloc(point0, point1, radius, _overlapBuffer, layerMask));
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static (Vector3, Vector3, float) GetCapsuleDimensions(CharacterController controller)
+        {
+            var radius = controller.radius;
+            var center = controller.transform.TransformPoint(controller.center);
+            var height = Mathf.Max(controller.height, radius * 2f);
+            var halfHeight = height * 0.5f - radius;
+            var up = controller.transform.up;
+            var p0 = center + up * halfHeight;
+            var p1 = center - up * halfHeight;
+
+            return (p0, p1, radius);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static (Vector3, Vector3, float) GetCapsuleDimensions(CapsuleCollider collider)
+        {
+            var radius = collider.radius;
+            var center = collider.bounds.center;
+            var height = Mathf.Max(collider.height, radius * 2f);
+            var halfHeight = height * 0.5f - radius;
+            var up = collider.transform.up;
+            var p0 = center + up * halfHeight;
+            var p1 = center - up * halfHeight;
+
+            return (p0, p1, radius);
+        }
 
         public static bool GetTouchPosition(out Vector3 position)
         {
