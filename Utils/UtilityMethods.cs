@@ -296,15 +296,18 @@ namespace CodexFramework.Utils
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (Collider[], int) OverlapCapsuleNonAlloc(Vector3 point0, Vector3 point1, float radius, int layerMask) =>
             (_overlapBuffer, Physics.OverlapCapsuleNonAlloc(point0, point1, radius, _overlapBuffer, layerMask));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static (Vector3, Vector3, float) GetCapsuleDimensions(CharacterController controller) =>
+            GetCapsuleDimensions(controller, Vector3.up);
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static (Vector3, Vector3, float) GetCapsuleDimensions(CharacterController controller)
+        public static (Vector3, Vector3, float) GetCapsuleDimensions(CharacterController controller, Vector3 up)
         {
             var radius = controller.radius;
             var center = controller.transform.TransformPoint(controller.center);
             var height = Mathf.Max(controller.height, radius * 2f);
             var halfHeight = height * 0.5f - radius;
-            var up = controller.transform.up;
             var p0 = center + up * halfHeight;
             var p1 = center - up * halfHeight;
 
@@ -312,13 +315,12 @@ namespace CodexFramework.Utils
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static (Vector3, Vector3, float) GetCapsuleDimensions(CapsuleCollider collider)
+        public static (Vector3, Vector3, float) GetCapsuleDimensions(CapsuleCollider collider, Vector3 up)
         {
             var radius = collider.radius;
             var center = collider.bounds.center;
             var height = Mathf.Max(collider.height, radius * 2f);
             var halfHeight = height * 0.5f - radius;
-            var up = collider.transform.up;
             var p0 = center + up * halfHeight;
             var p1 = center - up * halfHeight;
 
@@ -326,17 +328,7 @@ namespace CodexFramework.Utils
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static (Vector3, Vector3, float) GetCapsuleDimensionsGlobalUp(CapsuleCollider collider)
-        {
-            var radius = collider.radius;
-            var center = collider.bounds.center;
-            var height = Mathf.Max(collider.height, radius * 2f);
-            var halfHeight = height * 0.5f - radius;
-            var p0 = center + Vector3.up * halfHeight;
-            var p1 = center - Vector3.up * halfHeight;
-
-            return (p0, p1, radius);
-        }
+        public static (Vector3, Vector3, float) GetCapsuleDimensions(CapsuleCollider collider) => GetCapsuleDimensions(collider, Vector3.up);
 
         public static bool GetTouchPosition(out Vector3 position)
         {
