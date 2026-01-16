@@ -324,6 +324,19 @@ namespace CodexFramework.Utils
 
             return (p0, p1, radius);
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static (Vector3, Vector3, float) GetCapsuleDimensionsGlobalUp(CapsuleCollider collider)
+        {
+            var radius = collider.radius;
+            var center = collider.bounds.center;
+            var height = Mathf.Max(collider.height, radius * 2f);
+            var halfHeight = height * 0.5f - radius;
+            var p0 = center + Vector3.up * halfHeight;
+            var p1 = center - Vector3.up * halfHeight;
+
+            return (p0, p1, radius);
+        }
 
         public static bool GetTouchPosition(out Vector3 position)
         {
