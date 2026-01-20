@@ -550,6 +550,12 @@ namespace CodexFramework.Utils
             return v;
         }
 
+        public static void DrawRayWithOrigin(Vector3 pos, Vector3 dir, Color color, float duration = 0.0f, float originRadius = 0.3f)
+        {
+            DrawDebugSphere(pos, originRadius, color, duration);
+            Debug.DrawRay(pos, dir, color, duration);
+        }
+        
         public static void DrawDebugSphere(Vector3 pos, float radius, Color color, float duration = 0.0f)
             => DrawDebugSphere(new Vector4(pos.x, pos.y, pos.z), radius, color, duration);
         public static void DrawDebugSphere(Vector4 pos, float radius, Color color, float duration = 0.0f)
