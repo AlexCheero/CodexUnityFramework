@@ -11,6 +11,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 #if UNITY_EDITOR
 using System.Reflection;
@@ -519,16 +520,29 @@ namespace CodexFramework.Utils
             }
         }
 
-        public static void GenerateFolderPaths_AssetDatabase(string FullPath)
+        public static void GenerateFolderPaths_AssetDatabase(string fullPath)
         {
-            string[] requiredFolders = FullPath.Split("/");
-            string path = requiredFolders[0];
-            for (int i = 1; i < requiredFolders.Length; i++)
+            if (!fullPath.StartsWith("Assets/"))
             {
-                if (!AssetDatabase.IsValidFolder(path + requiredFolders[i]))
-                    AssetDatabase.CreateFolder(path, requiredFolders[i]);
-                path += requiredFolders[i];
+                Debug.LogError("Path must start with 'Assets/'");
+                return;
             }
+            
+            var folders = fullPath.Split('/');
+            var currentPath = folders[0];
+            for (int i = 1; i < folders.Length; i++)
+            {
+                var nextPath = $"{currentPath}/{folders[i]}";
+                if (!AssetDatabase.IsValidFolder(nextPath))
+                    AssetDatabase.CreateFolder(currentPath, folders[i]);
+                currentPath = nextPath;
+            }
+        }
+
+        public static void CreateAssetAtPath(Object asset, string path, string assetName)
+        {
+            GenerateFolderPaths_AssetDatabase(path);
+            AssetDatabase.CreateAsset(asset, path + '/' + assetName);
         }
 
         // Sphere with radius of 1
