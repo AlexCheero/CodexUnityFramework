@@ -202,7 +202,7 @@ namespace CodexFramework.Utils
             return Vector3.Dot(cross, viewerTransform.up) > 0;
         }
 
-        public static Dictionary<T1, T2> TupleEnumerableToDict<T1, T2>(IEnumerable<Tuple<T1, T2>> enumerable)
+        public static Dictionary<T1, T2> TupleEnumerableToDict<T1, T2>(IEnumerable<Pair<T1, T2>> enumerable)
         {
             var dict = new Dictionary<T1, T2>();
             foreach (var item in enumerable)

@@ -9,7 +9,7 @@ namespace CodexFramework.Utils
     public class SerializableDict<K, V>
     {
         [SerializeField]
-        private Tuple<K, V>[] _pairs;
+        private Pair<K, V>[] _pairs;
         private Dictionary<K, V> _dict;
 
         public Dictionary<K, V> Dict
@@ -21,7 +21,7 @@ namespace CodexFramework.Utils
             }
         }
 
-        private Dictionary<K, V> ConvertToDict(Tuple<K, V>[] pairs)
+        private Dictionary<K, V> ConvertToDict(Pair<K, V>[] pairs)
         {
             var set = new Dictionary<K, V>(pairs.Length);
             for (int i = 0; i < pairs.Length; i++)
