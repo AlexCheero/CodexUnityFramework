@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Utils
 {
@@ -15,10 +16,8 @@ namespace CodexFramework.Utils
             }
         }
 
-        public static T GetRandomItem<T>(this IList<T> list)
-        {
-            return list[UnityEngine.Random.Range(0, list.Count)];
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T GetRandomItem<T>(this IList<T> list) => list[UnityEngine.Random.Range(0, list.Count)];
 
         public delegate bool MergeSortComparator<T>(T a, T b);
         public static void InPlaceMergeSort<T>(this IList<T> list, MergeSortComparator<T> comparator, int low = 0) =>
