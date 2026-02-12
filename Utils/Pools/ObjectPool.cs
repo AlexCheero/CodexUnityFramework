@@ -7,6 +7,8 @@ namespace CodexFramework.Utils.Pools
 {
     public class ObjectPool : MonoBehaviour
     {
+        private const int GROW_PER_FRAME = 1;
+        
         [SerializeField]
         private int _initialCount;
         [SerializeField]
@@ -14,21 +16,18 @@ namespace CodexFramework.Utils.Pools
         [SerializeField]
         private PoolItem[] _objects;
         private int _firstAvailable = 0;
-
-        //TODO: turn into changeable parameter
-        private int GrowPerFrame => 1;
-
+        
         public PoolItem Prototype => _prototype;
-        public GameObject PrototypeGO => _prototype.gameObject;
 
         public void Init(int initialCount, PoolItem prototype)
         {
-            _initialCount = initialCount;
             _prototype = prototype;
-            StartCoroutine(Fix(GrowPerFrame));
+            Grow(GROW_PER_FRAME, initialCount);
         }
 
 #if UNITY_EDITOR
+        public int Allocated => _objects.Length;
+        
         [MenuItem("Utils/Pools/Fix pools", false, -1)]
         private static void FixPools()
         {
@@ -41,14 +40,13 @@ namespace CodexFramework.Utils.Pools
             pool.InstantFix();
             EditorUtility.SetDirty(pool);
         }
-#endif
-
-        private void PrepareToFix()
+        
+        private void InstantFix()
         {
             if (_initialCount == 0 || (_initialCount & _initialCount - 1) != 0)
                 Debug.LogError("pool " + name + " size should be power of two");
 
-            //make sure that there are will be only copies of prototype
+            //make sure that there will be only copies of prototype
             var childCount = transform.childCount;
             for (int i = childCount - 1; i >= 0; i--)
             {
@@ -57,42 +55,28 @@ namespace CodexFramework.Utils.Pools
             }
 
             Array.Resize(ref _objects, _initialCount);
-        }
-
-        private void InstantFix()
-        {
-            PrepareToFix();
+            
             for (int i = 0; i < _initialCount; i++)
                 AddNew(i);
         }
+#endif
 
-        private IEnumerator Fix(int growPerFrame)
-        {
-            PrepareToFix();
-            var addThisFrame = growPerFrame;
-            for (int i = 0; i < _initialCount; i++)
-            {
-                AddNew(i);
-                addThisFrame--;
-                if (addThisFrame == 0)
-                {
-                    addThisFrame = growPerFrame;
-                    yield return null;
-                }
-            }
-        }
-
-        public PoolItem Get()
+        public PoolItem Get(bool forceGrow = true)
         {
 #if DEBUG
             if (_firstAvailable > _objects.Length)
                 throw new Exception("_firstAvailable can't be bigger than _objects.Length");
 #endif
             if (_firstAvailable == _objects.Length)
-                Grow(GrowPerFrame);
+                Grow(GROW_PER_FRAME);
 
             if (_objects[_firstAvailable] == null)
+            {
+                if (!forceGrow)
+                    return null;
+                
                 AddNew(_firstAvailable);
+            }
             var item = _objects[_firstAvailable];
             item.gameObject.SetActive(true);
             _firstAvailable++;
@@ -100,15 +84,15 @@ namespace CodexFramework.Utils.Pools
             item.OnGetFromPool();
             return item;
         }
-        public PoolItem Get(Vector3 position)
+        public PoolItem Get(Vector3 position, bool forceGrow = true)
         {
-            var item = Get();
+            var item = Get(forceGrow);
             item.transform.position = position;
             return item;
         }
-        public PoolItem Get(Vector3 position, Quaternion rotation)
+        public PoolItem Get(Vector3 position, Quaternion rotation, bool forceGrow = true)
         {
-            var item = Get();
+            var item = Get(forceGrow);
             item.transform.SetPositionAndRotation(position, rotation);
             return item;
         }
@@ -128,18 +112,25 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
-        private void Grow(int growPerFrame)
+        private void Grow(int growPerFrame) => Grow(growPerFrame, _objects.Length + 1);
+        private void Grow(int growPerFrame, int minDesiredSize)
         {
+#if UNITY_EDITOR
+            var currentSize = _objects?.Length ?? 0;
+            if (minDesiredSize < currentSize)
+                throw new Exception("minDesiredSize can't be smaller than _objects.Length");
+#endif
             const int maxResizeDelta = 64;
-            CodexECS.Utility.Utils.ResizeArray(_objects.Length + 1, ref _objects, maxResizeDelta);
-            if (!_growRoutineGuard)
+            CodexECS.Utility.Utils.ResizeArray(minDesiredSize, ref _objects, maxResizeDelta);
+            
+            if (!_isGrowing)
                 StartCoroutine(GrowRoutine(growPerFrame));
         }
         
-        private bool _growRoutineGuard;
+        private bool _isGrowing;
         private IEnumerator GrowRoutine(int growPerFrame)
         {
-            _growRoutineGuard = true;
+            _isGrowing = true;
             
 #if DEBUG
             if (growPerFrame < 1)
@@ -166,7 +157,7 @@ namespace CodexFramework.Utils.Pools
                 }
             }
 
-            _growRoutineGuard = false;
+            _isGrowing = false;
         }
 
         private void AddNew(int idx)

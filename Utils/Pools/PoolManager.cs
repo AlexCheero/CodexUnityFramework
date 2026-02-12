@@ -5,12 +5,12 @@ namespace CodexFramework.Utils.Pools
 {
     public class PoolManager : Singleton<PoolManager>
     {
-        private readonly Dictionary<PoolItem, ObjectPool> _poolsList = new();
+        private readonly Dictionary<PoolItem, ObjectPool> _poolsDict = new();
 
         protected override void Init()
         {
             base.Init();
-            _poolsList.Clear();
+            _poolsDict.Clear();
         }
 
         public ObjectPool GetByPrototype(IPoolableBehaviour prototype) => GetByPrototype(prototype.Item);
@@ -19,9 +19,9 @@ namespace CodexFramework.Utils.Pools
         public ObjectPool GetByPrototype(IPoolableBehaviour prototype, int createIfNotFoundWithSize) => GetByPrototype(prototype.Item, createIfNotFoundWithSize);
         public ObjectPool GetByPrototype(PoolItem prototype, int createIfNotFoundWithSize)
         {
-            if (!_poolsList.ContainsKey(prototype))
-                _poolsList[prototype] = CreatePool(prototype, createIfNotFoundWithSize);
-            return _poolsList[prototype];
+            if (!_poolsDict.ContainsKey(prototype))
+                _poolsDict[prototype] = CreatePool(prototype, createIfNotFoundWithSize);
+            return _poolsDict[prototype];
         }
 
         private ObjectPool CreatePool(PoolItem prototype, int createIfNotFoundWithSize)
@@ -31,10 +31,24 @@ namespace CodexFramework.Utils.Pools
             {
                 pool = new GameObject(prototype.name + "Pool").AddComponent<ObjectPool>();
                 pool.Init(createIfNotFoundWithSize, prototype);
-                _poolsList.Add(prototype, pool);
+                _poolsDict.Add(prototype, pool);
             }
 
             return pool;
         }
+        
+#if UNITY_EDITOR
+        [SerializeField]
+        private bool _logAllocated;
+
+        void OnDestroy()
+        {
+            if (!_logAllocated)
+                return;
+
+            foreach (var pool in _poolsDict.Values)
+                Debug.Log($"{pool.Prototype.name}'s pool allocated: {pool.Allocated}");
+        }
+#endif
     }
 }

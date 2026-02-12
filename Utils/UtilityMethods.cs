@@ -395,30 +395,6 @@ namespace CodexFramework.Utils
             Debug.LogError("This should never happen");
             return weightedObjects.First().Value;
         }
-
-        public static EntityView GetPooledEntityView(PooledEntityView prototype, int initialCapacity, EcsWorld world)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item, initialCapacity);
-            var view = pool.Get().GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
-        public static EntityView GetPooledEntityView(PooledEntityView prototype, int initialCapacity, EcsWorld world, Vector3 position)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item, initialCapacity);
-            var view = pool.Get(position).GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
-        public static EntityView GetPooledEntityView(PooledEntityView prototype, int initialCapacity, EcsWorld world, Vector3 position, Quaternion rotation)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item, initialCapacity);
-            var view = pool.Get(position, rotation).GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
         
         public static EntityView GetPooledEntityView(PooledEntityView prototype, EcsWorld world)
         {
