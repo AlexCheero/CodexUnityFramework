@@ -468,7 +468,7 @@ namespace CodexFramework.Utils
         public static GameObject CreateDebugIndicatorObject(Color color, string name = "IndicatorObject", PrimitiveType primitive = PrimitiveType.Sphere, float scale = 0.3f)
         {
             var indicator = GameObject.CreatePrimitive(primitive);
-            UnityEngine.Object.Destroy(indicator.GetComponent<Collider>());
+            Object.DestroyImmediate(indicator.GetComponent<Collider>());
             indicator.transform.localScale = new Vector3(scale, scale, scale);
             indicator.GetComponent<Renderer>().material.color = color;
             indicator.name = name;
