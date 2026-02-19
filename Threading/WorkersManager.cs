@@ -43,11 +43,11 @@ namespace CodexFramework.Threading
                 if (!_running)
                     break;
 
-                int chunkSize = _count / _threads.Length;
-                int start = threadIndex * chunkSize;
-                int end = (threadIndex == _threads.Length - 1)
-                    ? _count
-                    : start + chunkSize;
+                var chunkSize = Mathf.CeilToInt((float)_count / _threads.Length);
+                var start = threadIndex * chunkSize;
+                var end = start + chunkSize;
+                if (end > _count)
+                    end = _count;
 
                 try
                 {
