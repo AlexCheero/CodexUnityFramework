@@ -32,7 +32,7 @@ namespace CodexFramework.Threading
             }
         }
         
-        private WorkersManager() : this(SystemInfo.processorCount - 1){}
+        private WorkersManager() : this(SystemInfo.processorCount / 2){}
         private WorkersManager(int workerCount)
         {
             if (workerCount <= 0)
@@ -53,6 +53,8 @@ namespace CodexFramework.Threading
                 _threads[i].IsBackground = true;
                 _threads[i].Start();
             }
+            
+            Application.quitting += Dispose;
         }
 
         private void WorkerLoop(int threadIndex)
@@ -106,6 +108,7 @@ namespace CodexFramework.Threading
 
         public void Dispose()
         {
+            Application.quitting -= Dispose;
             _running = false;
 
             _barrier.SignalAndWait(); // разбудить чтобы выйти
