@@ -15,19 +15,40 @@ namespace CodexFramework.Threading
         private readonly Thread[] _threads;
         private readonly Barrier _barrier;
         private volatile bool _running = true;
+        private readonly bool _isDummy;
 
         private IWork _job;
         private int _count;
+        private int _minCountPerThread;
+        private int _chunkSize;
 
-        public WorkersManager() : this(Math.Max(1, SystemInfo.processorCount - 1)){}
-        public WorkersManager(int workerCount)
+        private static WorkersManager _singleton;
+        public static WorkersManager Singleton
         {
+            get
+            {
+                _singleton ??= new();
+                return _singleton;
+            }
+        }
+        
+        private WorkersManager() : this(SystemInfo.processorCount - 1){}
+        private WorkersManager(int workerCount)
+        {
+            if (workerCount <= 0)
+            {
+                _isDummy = true;
+                return;
+            }
+            
+            _isDummy = false;
+            
             _threads = new Thread[workerCount];
             _barrier = new Barrier(workerCount + 1);
 
             for (int i = 0; i < workerCount; i++)
             {
-                int threadIndex = i;
+                int threadIndex = i + 1;
                 _threads[i] = new Thread(() => WorkerLoop(threadIndex));
                 _threads[i].IsBackground = true;
                 _threads[i].Start();
@@ -43,29 +64,41 @@ namespace CodexFramework.Threading
                 if (!_running)
                     break;
 
-                var chunkSize = Mathf.CeilToInt((float)_count / _threads.Length);
-                var start = threadIndex * chunkSize;
-                var end = start + chunkSize;
+                var start = threadIndex * _chunkSize;
+                var end = start + _chunkSize;
                 if (end > _count)
                     end = _count;
 
-                try
+                if (start < end)
                 {
-                    _job.Execute(start, end);
-                }
-                catch (Exception e)
-                {
-                   Debug.LogError(e);
+                    try
+                    {
+                        _job.Execute(start, end);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError(e);
+                    }
                 }
 
                 _barrier.SignalAndWait();
             }
         }
 
-        public void Run(int count, IWork job)
+        public void Run(int count, int minCountPerThread, IWork job)
         {
+            if (_isDummy || count <= minCountPerThread)
+            {
+                job.Execute(0, count);
+                return;
+            }
+            
             _count = count;
+            _minCountPerThread = minCountPerThread;
+            _chunkSize = Mathf.Max(_minCountPerThread, Mathf.CeilToInt((float)_count / (_threads.Length + 1)));
             _job = job;
+            
+            _job.Execute(0, Mathf.Min(_count, _chunkSize));
 
             _barrier.SignalAndWait(); // стартуем всех
             _barrier.SignalAndWait(); // ждём завершения
