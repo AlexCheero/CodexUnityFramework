@@ -27,12 +27,11 @@ namespace CodexFramework.Threading
         {
             get
             {
-                _singleton ??= new();
+                _singleton ??= new(SystemInfo.processorCount - 2);
                 return _singleton;
             }
         }
         
-        private WorkersManager() : this(SystemInfo.processorCount / 2){}
         private WorkersManager(int workerCount)
         {
             if (workerCount <= 0)
