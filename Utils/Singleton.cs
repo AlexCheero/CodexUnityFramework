@@ -3,12 +3,7 @@ using UnityEngine;
 
 namespace CodexFramework.Utils
 {
-    public abstract class Singleton : MonoBehaviour
-    {
-        public bool IsInited { get; }
-    }
-    
-    public class Singleton<T> : Singleton where T : MonoBehaviour
+    public class Singleton<T> : MonoBehaviour where T : MonoBehaviour
     {
         [SerializeField]
         private bool _dontDestroyOnLoad;
@@ -28,11 +23,12 @@ namespace CodexFramework.Utils
         {
             get
             {
+                if (_instance != null)
+                    return _instance;
+                Debug.LogWarning(typeof(T).Name + " instance not found, creating new one!");
+                _instance = FindFirstObjectByType<T>();
                 if (_instance == null)
-                {
-                    Debug.LogWarning(typeof(T).Name + " instance not found, creating new one!");
                     _instance = new GameObject(typeof(T).Name).AddComponent<T>();
-                }
                 return _instance;
             }
         }
