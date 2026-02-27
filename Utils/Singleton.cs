@@ -1,8 +1,14 @@
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace CodexFramework.Utils
 {
-    public class Singleton<T> : MonoBehaviour where T : MonoBehaviour
+    public abstract class Singleton : MonoBehaviour
+    {
+        public bool IsInited { get; }
+    }
+    
+    public class Singleton<T> : Singleton where T : MonoBehaviour
     {
         [SerializeField]
         private bool _dontDestroyOnLoad;
@@ -12,7 +18,7 @@ namespace CodexFramework.Utils
             if (_instance != null)
                 return;
             
-            var singleton = FindObjectOfType<Singleton<T>>(true);
+            var singleton = FindFirstObjectByType<Singleton<T>>(FindObjectsInactive.Include);
             if (singleton != null)
                 singleton.Awake();
         }
@@ -32,6 +38,12 @@ namespace CodexFramework.Utils
         }
 
         public static bool IsCreated => _instance != null;
+        
+        public bool IsInited
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _instance == this;
+        }
 
         void Awake()
         {
