@@ -566,6 +566,31 @@ namespace CodexFramework.Utils
             }
         }
 
+        public static void DrawDebugCube(Vector3 position, float dimension) => DrawDebugCube(position, dimension, Color.green);
+        public static void DrawDebugCube(Vector3 position, float dimension, Color color)
+        {
+            Debug.DrawLine(position, position + Vector3.up*dimension, color);
+            Debug.DrawLine(position, position + Vector3.right*dimension, color);
+            Debug.DrawLine(position, position + Vector3.forward*dimension, color);
+
+            var nextPos = position + Vector3.up * dimension;
+            Debug.DrawLine(nextPos, nextPos + Vector3.right*dimension, color);
+            Debug.DrawLine(nextPos, nextPos + Vector3.forward*dimension, color);
+
+            nextPos = position + Vector3.right * dimension;
+            Debug.DrawLine(nextPos, nextPos + Vector3.up*dimension, color);
+            Debug.DrawLine(nextPos, nextPos + Vector3.forward*dimension, color);
+                
+            nextPos = position + Vector3.forward*dimension;
+            Debug.DrawLine(nextPos, nextPos + Vector3.up*dimension, color);
+            Debug.DrawLine(nextPos, nextPos + Vector3.right*dimension, color);
+                
+            nextPos = position + (Vector3.forward + Vector3.right + Vector3.up) * dimension;
+            Debug.DrawLine(nextPos, nextPos - Vector3.up*dimension, color);
+            Debug.DrawLine(nextPos, nextPos - Vector3.right*dimension, color);
+            Debug.DrawLine(nextPos, nextPos - Vector3.forward*dimension, color);
+        }
+
         private static IEnumerable<T> GetComponentsFromProject<T>() where T : Component
         {
             string[] prefabGUIDs = AssetDatabase.FindAssets("t:Prefab");
