@@ -568,27 +568,32 @@ namespace CodexFramework.Utils
 
         public static void DrawDebugCube(Vector3 position, float dimension, float duration = 0.0f) => DrawDebugCube(position, dimension, Color.green, duration);
         public static void DrawDebugCube(Vector3 position, float dimension, Color color, float duration = 0.0f)
+            => DrawDebugCuboid(position, new Vector3(dimension, dimension, dimension), color, duration);
+        
+        public static void DrawDebugCuboid(Vector3 position, Vector3 dimensions, float duration = 0.0f)
+            => DrawDebugCuboid(position, dimensions, Color.green, duration);
+        public static void DrawDebugCuboid(Vector3 position, Vector3 dimensions, Color color, float duration = 0.0f)
         {
-            Debug.DrawLine(position, position + Vector3.up*dimension, color, duration);
-            Debug.DrawLine(position, position + Vector3.right*dimension, color, duration);
-            Debug.DrawLine(position, position + Vector3.forward*dimension, color, duration);
+            Debug.DrawLine(position, position + Vector3.up*dimensions.y, color, duration);
+            Debug.DrawLine(position, position + Vector3.right*dimensions.x, color, duration);
+            Debug.DrawLine(position, position + Vector3.forward*dimensions.z, color, duration);
 
-            var nextPos = position + Vector3.up * dimension;
-            Debug.DrawLine(nextPos, nextPos + Vector3.right*dimension, color, duration);
-            Debug.DrawLine(nextPos, nextPos + Vector3.forward*dimension, color, duration);
+            var nextPos = position + Vector3.up * dimensions.y;
+            Debug.DrawLine(nextPos, nextPos + Vector3.right*dimensions.x, color, duration);
+            Debug.DrawLine(nextPos, nextPos + Vector3.forward*dimensions.z, color, duration);
 
-            nextPos = position + Vector3.right * dimension;
-            Debug.DrawLine(nextPos, nextPos + Vector3.up*dimension, color, duration);
-            Debug.DrawLine(nextPos, nextPos + Vector3.forward*dimension, color, duration);
+            nextPos = position + Vector3.right * dimensions.x;
+            Debug.DrawLine(nextPos, nextPos + Vector3.up*dimensions.y, color, duration);
+            Debug.DrawLine(nextPos, nextPos + Vector3.forward*dimensions.z, color, duration);
                 
-            nextPos = position + Vector3.forward*dimension;
-            Debug.DrawLine(nextPos, nextPos + Vector3.up*dimension, color, duration);
-            Debug.DrawLine(nextPos, nextPos + Vector3.right*dimension, color, duration);
+            nextPos = position + Vector3.forward*dimensions.z;
+            Debug.DrawLine(nextPos, nextPos + Vector3.up*dimensions.y, color, duration);
+            Debug.DrawLine(nextPos, nextPos + Vector3.right*dimensions.x, color, duration);
                 
-            nextPos = position + (Vector3.forward + Vector3.right + Vector3.up) * dimension;
-            Debug.DrawLine(nextPos, nextPos - Vector3.up*dimension, color, duration);
-            Debug.DrawLine(nextPos, nextPos - Vector3.right*dimension, color, duration);
-            Debug.DrawLine(nextPos, nextPos - Vector3.forward*dimension, color, duration);
+            nextPos = position + dimensions;
+            Debug.DrawLine(nextPos, nextPos - Vector3.up*dimensions.y, color, duration);
+            Debug.DrawLine(nextPos, nextPos - Vector3.right*dimensions.x, color, duration);
+            Debug.DrawLine(nextPos, nextPos - Vector3.forward*dimensions.z, color, duration);
         }
 
         private static IEnumerable<T> GetComponentsFromProject<T>() where T : Component
