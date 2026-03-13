@@ -43,7 +43,7 @@ namespace CodexFramework.Utils
 
         void Awake()
         {
-            if (_instance != null)
+            if (_instance != null && _instance != this)
             {
                 if (_instance.gameObject.scene.buildIndex != -1)
                     Debug.LogWarning(GetType().FullName + " instance already created!");
