@@ -219,7 +219,7 @@ namespace CodexFramework.Utils
             return angle - Mathf.Sign(angle) * 360;
         }
 
-        private static RaycastHit[] _castBuffer = new RaycastHit[32];
+        private static readonly RaycastHit[] _castBuffer = new RaycastHit[16];
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (RaycastHit[], int) RayCastNonAlloc(
             Ray ray,
@@ -281,7 +281,7 @@ namespace CodexFramework.Utils
             int layerMask) =>
             (_castBuffer, Physics.CapsuleCastNonAlloc(point1, point2, radius, direction, _castBuffer, maxDistance, layerMask));
 
-        private static readonly Collider[] _overlapBuffer = new Collider[64];
+        private static readonly Collider[] _overlapBuffer = new Collider[16];
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (Collider[], int) OverlapSphereNonAlloc(Vector3 position, float radius, int layerMask) =>
