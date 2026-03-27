@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace CodexFramework.Utils
@@ -8,16 +7,6 @@ namespace CodexFramework.Utils
         [SerializeField]
         private bool _dontDestroyOnLoad;
 
-        public static void ForceInit()
-        {
-            if (_instance != null)
-                return;
-            
-            var singleton = FindFirstObjectByType<Singleton<T>>(FindObjectsInactive.Include);
-            if (singleton != null)
-                singleton.Awake();
-        }
-
         private static T _instance;
         public static T Instance
         {
@@ -26,37 +15,38 @@ namespace CodexFramework.Utils
                 if (_instance != null)
                     return _instance;
                 Debug.LogWarning(typeof(T).Name + " instance not found, creating new one!");
-                _instance = FindFirstObjectByType<T>();
-                if (_instance == null)
-                    _instance = new GameObject(typeof(T).Name).AddComponent<T>();
+                var instance = FindFirstObjectByType<T>();
+                if (instance == null)
+                    instance = new GameObject(typeof(T).Name).AddComponent<T>();
+                InitInstance(instance);
                 return _instance;
             }
         }
 
-        public static bool IsCreated => _instance != null;
-        
-        public bool IsInited
+        private static void InitInstance(T instance)
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _instance == this;
+            var singleton = instance as Singleton<T>;
+            if (singleton._dontDestroyOnLoad)
+                DontDestroyOnLoad(singleton.gameObject);
+            _instance = instance;
+            singleton.Init();
         }
+
+        public static bool IsCreated => _instance != null;
 
         void Awake()
         {
-            if (_instance != null && _instance != this)
+            if (_instance == this)
+                return;
+            if (_instance != null)
             {
                 if (_instance.gameObject.scene.buildIndex != -1)
                     Debug.LogWarning(GetType().FullName + " instance already created!");
                 Destroy(this);
                 return;
             }
-
-            if (_dontDestroyOnLoad)
-                DontDestroyOnLoad(gameObject);
-
-            _instance = this as T;
-
-            Init();
+            
+            InitInstance(this as T);
         }
 
         protected virtual void Init() { }
