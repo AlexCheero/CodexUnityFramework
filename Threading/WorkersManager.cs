@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using CodexECS;
 using UnityEngine;
 using SystemInfo = UnityEngine.Device.SystemInfo;
 
@@ -8,6 +9,22 @@ namespace CodexFramework.Threading
     public interface IWork
     {
         public void Execute(int start, int end);
+    }
+    
+    public abstract class BaseWork : IWork
+    {
+        protected EcsFilter filter;
+        public abstract void InitWork();
+            
+        public abstract void Execute(int start, int end);
+            
+        public void RunWork(int minCountPerThread = 5000)
+        {
+            filter.Lock();
+            InitWork();
+            WorkersManager.Singleton.Run(filter.EntitiesCount, minCountPerThread, this);
+            filter.Unlock();
+        }
     }
 
     public class WorkersManager : IDisposable
