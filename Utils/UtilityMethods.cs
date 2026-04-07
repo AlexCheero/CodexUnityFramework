@@ -521,20 +521,11 @@ namespace CodexFramework.Utils
             AssetDatabase.CreateAsset(asset, path + '/' + assetName);
         }
 
-        private static IEnumerable<T> GetComponentsFromProject<T>() where T : Component
+        private static IEnumerable<T> GetObjectsFromProject<T>() where T : Object
         {
-            string[] prefabGUIDs = AssetDatabase.FindAssets("t:Prefab");
-            List<T> components = new();
-            foreach (string guid in prefabGUIDs)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                var comp = prefab.GetComponent<T>();
-                if (comp != null)
-                    components.Add(comp);
-            }
-
-            return components;
+            return AssetDatabase.FindAssets($"t:{typeof(T).Name}")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Select(AssetDatabase.LoadAssetAtPath<T>);
         }
 
         private static IEnumerable<GameObject> GetObjectsWithComponentInHierarchy<T>() where T : Component
@@ -556,7 +547,7 @@ namespace CodexFramework.Utils
         //[MenuItem("../../..")]
         public static void ChangeComponentsInProject<T>(Action<T> changer) where T : Component
         {
-            var components = GetComponentsFromProject<T>();
+            var components = GetObjectsFromProject<T>();
             foreach (var component in components)
             {
                 var go = component.gameObject;
