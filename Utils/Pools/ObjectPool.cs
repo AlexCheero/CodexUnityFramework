@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using UnityEditor;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
@@ -10,74 +10,62 @@ namespace CodexFramework.Utils.Pools
         private const int GROW_PER_FRAME = 1;
         
         [SerializeField]
-        private int _initialCount;
+        private int _maxCount = -1;
         [SerializeField]
         private PoolItem _prototype;
         [SerializeField]
-        private PoolItem[] _objects;
+        private PoolItem[] _items;
         private int _firstAvailable = 0;
         
         public PoolItem Prototype => _prototype;
+        public int Allocated => _items.Length;
+        public IReadOnlyList<PoolItem> Items => _items;
+        public int FirstAvailable => _firstAvailable;
 
-        public void Init(int initialCount, PoolItem prototype)
+        public void Init(PoolItem prototype, int initialCount, int maxCount)
         {
             _prototype = prototype;
-            Grow(GROW_PER_FRAME, initialCount);
+            _maxCount = maxCount;
+            var count = _maxCount > 0 ? _maxCount : initialCount;
+            Grow(GROW_PER_FRAME, count);
         }
-
-#if UNITY_EDITOR
-        public int Allocated => _objects.Length;
-        
-        [MenuItem("Utils/Pools/Fix pools", false, -1)]
-        private static void FixPools()
-        {
-            foreach (var pool in FindObjectsOfType<ObjectPool>())
-                FixPool(pool);
-        }
-
-        private static void FixPool(ObjectPool pool)
-        {
-            pool.InstantFix();
-            EditorUtility.SetDirty(pool);
-        }
-        
-        private void InstantFix()
-        {
-            if (_initialCount == 0 || (_initialCount & _initialCount - 1) != 0)
-                Debug.LogError("pool " + name + " size should be power of two");
-
-            //make sure that there will be only copies of prototype
-            var childCount = transform.childCount;
-            for (int i = childCount - 1; i >= 0; i--)
-            {
-                var childObj = transform.GetChild(i).gameObject;
-                DestroyImmediate(childObj);
-            }
-
-            Array.Resize(ref _objects, _initialCount);
-            
-            for (int i = 0; i < _initialCount; i++)
-                AddNew(i);
-        }
-#endif
 
         public PoolItem Get(bool forceGrow = true)
         {
 #if DEBUG
-            if (_firstAvailable > _objects.Length)
+            if (_firstAvailable > _items.Length)
                 throw new Exception("_firstAvailable can't be bigger than _objects.Length");
 #endif
-            if (_firstAvailable == _objects.Length)
-                Grow(GROW_PER_FRAME);
+            if (_firstAvailable == _items.Length)
+            {
+                if (_maxCount < 1)
+                    Grow(GROW_PER_FRAME);
+                else
+                {
+                    for (var i = _items.Length - 1; i > -1; i--)
+                    {
+                        var poolItem = _items[i];
+                        if (poolItem == null || poolItem.IsInPool)
+                            continue;
+                        ReturnItem(poolItem);
+                        break;
+                    }
+                }
+            }
 
-            if (_objects[_firstAvailable] == null)
+            if (_items[_firstAvailable] == null)
             {
                 if (!forceGrow)
                     return null;
                 
+#if UNITY_EDITOR
+                if (_maxCount > 0)
+                    throw new Exception("can't grow fixed pool");
+#endif
+                
                 AddNew(_firstAvailable);
             }
-            var item = _objects[_firstAvailable];
+            var item = _items[_firstAvailable];
             item.gameObject.SetActive(true);
             _firstAvailable++;
 
@@ -99,29 +87,29 @@ namespace CodexFramework.Utils.Pools
 
         private void InstantGrow()
         {
-            var newLength = _objects.Length << 1;
-            Array.Resize(ref _objects, newLength);
+            var newLength = _items.Length << 1;
+            Array.Resize(ref _items, newLength);
 
-            for (int i = _firstAvailable; i < _objects.Length; i++)
+            for (int i = _firstAvailable; i < _items.Length; i++)
             {
 #if DEBUG
-                if (_objects[i] != null)
+                if (_items[i] != null)
                     throw new Exception("non null pool items after grow");
 #endif
                 AddNew(i);
             }
         }
 
-        private void Grow(int growPerFrame) => Grow(growPerFrame, _objects.Length + 1);
+        private void Grow(int growPerFrame) => Grow(growPerFrame, _items.Length + 1);
         private void Grow(int growPerFrame, int minDesiredSize)
         {
 #if UNITY_EDITOR
-            var currentSize = _objects?.Length ?? 0;
+            var currentSize = _items?.Length ?? 0;
             if (minDesiredSize < currentSize)
                 throw new Exception("minDesiredSize can't be smaller than _objects.Length");
 #endif
             const int maxResizeDelta = 64;
-            CodexECS.Utility.Utils.ResizeArray(minDesiredSize, ref _objects, maxResizeDelta);
+            CodexECS.Utility.Utils.ResizeArray(minDesiredSize - 1, ref _items, maxResizeDelta);
             
             if (!_isGrowing)
                 StartCoroutine(GrowRoutine(growPerFrame));
@@ -141,7 +129,7 @@ namespace CodexFramework.Utils.Pools
 #endif
 
             var addThisFrame = growPerFrame;
-            for (int i = _firstAvailable; i < _objects.Length; i++)
+            for (int i = _firstAvailable; i < _items.Length; i++)
             {
                 //looks like it could cause problems if AddNew will be called outside of the routine
 //#if DEBUG
@@ -162,13 +150,13 @@ namespace CodexFramework.Utils.Pools
 
         private void AddNew(int idx)
         {
-            if (_objects[idx] != null)
+            if (_items[idx] != null)
                 return;
 
-            _objects[idx] = Instantiate(_prototype, transform);
-            _objects[idx].OnCreate();
-            _objects[idx].AddToPool(this, idx);
-            _objects[idx].gameObject.SetActive(false);
+            _items[idx] = Instantiate(_prototype, transform);
+            _items[idx].OnCreate();
+            _items[idx].AddToPool(this, idx);
+            _items[idx].gameObject.SetActive(false);
         }
 
         //should be used only from PoolItem itself!
@@ -187,12 +175,14 @@ namespace CodexFramework.Utils.Pools
             _firstAvailable--;
             if (item.Idx < _firstAvailable)
             {
-                var temp = _objects[_firstAvailable];
-                _objects[_firstAvailable] = item;
-                _objects[item.Idx] = temp;
+                var temp = _items[_firstAvailable];
+                _items[_firstAvailable] = item;
+                _items[item.Idx] = temp;
                 temp.AddToPool(this, item.Idx);
                 item.AddToPool(this, _firstAvailable);
             }
+            
+            item.OnReturn();
         }
     }
 }

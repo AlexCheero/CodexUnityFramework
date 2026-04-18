@@ -14,23 +14,23 @@ namespace CodexFramework.Utils.Pools
         }
 
         public ObjectPool GetByPrototype(IPoolableBehaviour prototype) => GetByPrototype(prototype.Item);
-        public ObjectPool GetByPrototype(PoolItem prototype) => GetByPrototype(prototype, prototype.InitialCount);
+        public ObjectPool GetByPrototype(PoolItem prototype) => GetByPrototype(prototype, prototype.InitialCount, prototype.MaxCount);
         
-        public ObjectPool GetByPrototype(IPoolableBehaviour prototype, int createIfNotFoundWithSize) => GetByPrototype(prototype.Item, createIfNotFoundWithSize);
-        public ObjectPool GetByPrototype(PoolItem prototype, int createIfNotFoundWithSize)
+        public ObjectPool GetByPrototype(IPoolableBehaviour prototype, int initialCount, int maxCount) => GetByPrototype(prototype.Item, initialCount, maxCount);
+        public ObjectPool GetByPrototype(PoolItem prototype, int initialCount, int maxCount)
         {
             if (!_poolsDict.ContainsKey(prototype))
-                _poolsDict[prototype] = CreatePool(prototype, createIfNotFoundWithSize);
+                _poolsDict[prototype] = CreatePool(prototype, initialCount, maxCount);
             return _poolsDict[prototype];
         }
 
-        private ObjectPool CreatePool(PoolItem prototype, int createIfNotFoundWithSize)
+        private ObjectPool CreatePool(PoolItem prototype, int initialCount, int maxCount)
         {
             ObjectPool pool = null;
-            if (createIfNotFoundWithSize > 0)
+            if (initialCount > 0)
             {
                 pool = new GameObject(prototype.name + "Pool").AddComponent<ObjectPool>();
-                pool.Init(createIfNotFoundWithSize, prototype);
+                pool.Init(prototype, initialCount, maxCount);
                 _poolsDict.Add(prototype, pool);
             }
 

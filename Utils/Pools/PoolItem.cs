@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -25,7 +26,11 @@ namespace CodexFramework.Utils.Pools
     {
         [SerializeField]
         private int _initialCount = 2;
+        [SerializeField]
+        private int _maxCount = -1;
+        
         public int InitialCount => _initialCount;
+        public int MaxCount => _maxCount;
         
         [SerializeField]
         private ObjectPool _pool;
@@ -39,7 +44,18 @@ namespace CodexFramework.Utils.Pools
         private IResetOnGetPoolableBehaviour[] _getPoolableBehaviours;
         private IResetOnReturnPoolableBehaviour[] _returnPoolableBehaviours;
 
-        public int Idx => _idx;
+        public int Idx
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _idx;
+        }
+
+        private bool _isInPool;
+        public bool IsInPool
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _isInPool;
+        }
 
         public void OnCreate()
         {
@@ -51,36 +67,23 @@ namespace CodexFramework.Utils.Pools
         {
             _pool = pool;
             _idx = idx;
+            _isInPool = true;
         }
 
         public void OnGetFromPool()
         {
+            _isInPool = false;
             for (var i = 0; i < _getPoolableBehaviours.Length; i++)
                 _getPoolableBehaviours[i].OnGet();
         }
 
-        public void ReturnToPool()
+        public void ReturnToPool() => _pool.ReturnItem(this);
+
+        //TODO: bad design- OnReturn is called from ObjectPool.ReturnItem
+        public void OnReturn()
         {
-            StopAllCoroutines();
-            _pool.ReturnItem(this);
-            
             for (var i = 0; i < _returnPoolableBehaviours.Length; i++)
                 _returnPoolableBehaviours[i].OnReturn();
-        }
-
-        private bool _isDelayedReturning;
-        public void DelayedReturnToPool(float delay)
-        {
-            if (!_isDelayedReturning)
-                StartCoroutine(DelayedReturnToPoolRoutine(delay));
-        }
-
-        private IEnumerator DelayedReturnToPoolRoutine(float delay)
-        {
-            _isDelayedReturning = true;
-            yield return new WaitForSeconds(delay);
-            ReturnToPool();
-            _isDelayedReturning = false;
         }
 
         public T[] GetAllComponentsInChildrenAndCache<T>(bool includeInactive = false) where T : Component
