@@ -27,7 +27,24 @@ namespace CodexFramework.Utils.Pools
             _prototype = prototype;
             _maxCount = maxCount;
             var count = _maxCount > 0 ? _maxCount : initialCount;
-            Grow(GROW_PER_FRAME, count);
+
+            if (_prototype.gameObject.scene.IsValid())
+            {
+                const int maxResizeDelta = 64;
+                CodexECS.Utility.Utils.ResizeArray(count - 1, ref _items, maxResizeDelta);
+                
+                _items[0] = _prototype;
+                _prototype.transform.SetParent(transform);
+                _prototype.OnCreate();
+                _prototype.AddToPool(this, 0);
+                _prototype.gameObject.SetActive(false);
+                
+                StartCoroutine(GrowRoutine(GROW_PER_FRAME));
+            }
+            else
+            {
+                Grow(GROW_PER_FRAME, count);
+            }
         }
 
         public PoolItem Get(bool forceGrow = true)
