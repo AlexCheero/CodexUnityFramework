@@ -545,14 +545,13 @@ namespace CodexFramework.Utils
         }
 
         //[MenuItem("../../..")]
-        public static void ChangeComponentsInProject<T>(Action<T> changer) where T : Component
+        public static void ChangeItemsInProject<T>(Action<T> changer) where T : Object
         {
-            var components = GetObjectsFromProject<T>();
-            foreach (var component in components)
+            var items = GetObjectsFromProject<T>();
+            foreach (var item in items)
             {
-                var go = component.gameObject;
-                changer(component);
-                EditorUtility.SetDirty(go);
+                changer(item);
+                EditorUtility.SetDirty(item);
             }
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
