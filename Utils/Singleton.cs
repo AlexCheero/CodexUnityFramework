@@ -14,8 +14,7 @@ namespace CodexFramework.Utils
             {
                 if (_instance != null)
                     return _instance;
-                Debug.LogWarning(typeof(T).Name + " instance not found, creating new one!");
-                var instance = FindFirstObjectByType<T>();
+                var instance = FindFirstObjectByType<T>(FindObjectsInactive.Include);
                 if (instance == null)
                     instance = new GameObject(typeof(T).Name).AddComponent<T>();
                 InitInstance(instance);
