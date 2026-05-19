@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace CodexFramework.Utils
@@ -20,6 +21,16 @@ namespace CodexFramework.Utils
                 InitInstance(instance);
                 return _instance;
             }
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected static DT InstanceAs<DT>() where DT : T
+        {
+#if DEBUG
+            if (Instance is not DT)
+                Debug.LogError("WrongType");
+#endif
+            return (DT)Instance;
         }
 
         private static void InitInstance(T instance)

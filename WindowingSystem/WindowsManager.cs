@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using CodexFramework.Utils;
 using UnityEngine;
 
 namespace CodexFramework.WindowingSystem
 {
-    public abstract class WindowsManager<T> : MonoBehaviour where T : Enum
+    public abstract class WindowsManager<T> : Singleton<WindowsManager<T>> where T : Enum
     {
         private Dictionary<T, WindowBehaviour<T>> _windows;
     
@@ -20,79 +21,46 @@ namespace CodexFramework.WindowingSystem
             _windows = new();
             foreach (var window in windows)
             {
-                window.Init();
 #if DEBUG
-                if (_windows.ContainsKey(window.GetWindowType()))
-                    throw new Exception($"Trying to add {window.name} by key {window.GetWindowType()} but {_windows[window.GetWindowType()].name} is already registered");
+                if (_windows.ContainsKey(window.WindowType))
+                    throw new Exception($"Trying to add {window.name} by key {window.WindowType} but {_windows[window.WindowType].name} is already registered");
 #endif
-                _windows[window.GetWindowType()] = window;
-                window.OnOpen += ShowWindow;
-                window.OnClose += HideWindow;
+                _windows[window.WindowType] = window;
             }
         }
 
-        void Update()
+        protected virtual void ShowWindow(T windowType)
         {
-            if (Input.GetKeyDown(KeyCode.Escape) && HideLastWindow()) { }
-        }
-
-        private int _sortingOrder;
-    
-        public void ShowWindow(T windowType)
-        {
+#if UNITY_EDITOR
+            foreach (var wb in _windowsStack)
+            {
+                if (EqualityComparer<T>.Default.Equals(wb.WindowType, windowType))
+                    throw new Exception("Trying to show window that is already in stack");
+            }
+#endif
+            
             if (_windowsStack.TryPeek(out var lastWindow))
                 lastWindow.Hide();
         
             var window = _windows[windowType];
             window.transform.SetAsLastSibling();
-            window.Canvas.sortingOrder = _sortingOrder;
             window.Show();
-            _sortingOrder++;
         
             _windowsStack.Push(window);
-            if (_windowsStack.Count == 1)
-                OnFirstWindowOpened();
         }
 
-        public bool HideLastWindow()
+        public virtual bool HideLastWindow()
         {
-            if (!_windowsStack.TryPop(out var window))
+            if (!_windowsStack.TryPop(out var lastWindow))
                 return false;
         
-            window.transform.SetAsFirstSibling();
-            window.Canvas.sortingOrder = -1;
-            window.Hide();
-            _sortingOrder--;
+            lastWindow.transform.SetAsFirstSibling();
+            lastWindow.Hide();
         
-            if (_windowsStack.Count == 0)
-                OnLastWindowClosed();
-            else
-                _windowsStack.Peek().Show();
-        
-#if DEBUG
-            if (_sortingOrder < 0)
-                throw new Exception("Sorting order dropped below 0");
-#endif
+            if (_windowsStack.TryPeek(out var prevWindow))
+                prevWindow.Show();
         
             return true;
         }
-
-        public void HideWindow(WindowBehaviour<T> window)
-        {
-            if (!_windowsStack.TryPeek(out var lastWindow) || lastWindow != window)
-            {
-#if DEBUG
-                throw new Exception("Trying to hide not last window");
-#else
-            return;
-#endif
-            }
-
-            HideLastWindow();
-        }
-
-        protected abstract void OnFirstWindowOpened();
-
-        protected abstract void OnLastWindowClosed();
     }
 }
