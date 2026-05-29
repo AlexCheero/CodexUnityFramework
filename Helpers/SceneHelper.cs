@@ -2,11 +2,19 @@
 using CodexFramework.CodexEcsUnityIntegration;
 using CodexFramework.Gameplay.UI;
 using System.Collections;
+using CodexFramework.Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace CodexFramework.Helpers
+namespace CodexFramework.Scenes
 {
+    [Serializable]
+    public struct SceneEntry
+    {
+        public Sprite Preview;
+        public string ScenePath;
+    }
+    
     public static class SceneHelper
     {
         private const float _minLoadTime = 0.0f;
@@ -53,5 +61,7 @@ namespace CodexFramework.Helpers
                 Time.timeScale = 1.0f;//restore time scale on load new scene
             };
         }
+
+        public static bool IsSceneLoaded(string name) => SceneManager.GetSceneByName(name).isLoaded;
     }
 }
