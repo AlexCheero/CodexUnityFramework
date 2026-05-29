@@ -9,20 +9,8 @@ public class SceneEntryPropertyDrawer : PropertyDrawer
     {
         EditorGUI.BeginProperty(position, label, property);
 
-        SerializedProperty previewProp    = property.FindPropertyRelative("Preview");
-        SerializedProperty scenePathProp  = property.FindPropertyRelative("ScenePath");
+        var scenePathProp = property.FindPropertyRelative("ScenePath");
 
-        float lineH   = EditorGUIUtility.singleLineHeight;
-        float spacing = EditorGUIUtility.standardVerticalSpacing;
-
-        // --- Preview (стандартное поле Sprite) ---
-        Rect previewRect = new Rect(position.x, position.y, position.width, lineH);
-        EditorGUI.PropertyField(previewRect, previewProp);
-
-        // --- SceneAsset (объект-ссылка только в редакторе) ---
-        Rect sceneRect = new Rect(position.x, position.y + lineH + spacing, position.width, lineH);
-
-        // Восстанавливаем SceneAsset из сохранённого пути
         SceneAsset currentScene = null;
         string currentPath = scenePathProp.stringValue;
         if (!string.IsNullOrEmpty(currentPath))
@@ -30,14 +18,13 @@ public class SceneEntryPropertyDrawer : PropertyDrawer
 
         EditorGUI.BeginChangeCheck();
         var newScene = (SceneAsset)EditorGUI.ObjectField(
-            sceneRect,
-            new GUIContent("Scene"),
+            position,
+            label,
             currentScene,
             typeof(SceneAsset),
             allowSceneObjects: false
         );
 
-        // Если пользователь изменил поле — записываем путь обратно в строку
         if (EditorGUI.EndChangeCheck())
         {
             scenePathProp.stringValue = newScene != null
@@ -46,12 +33,5 @@ public class SceneEntryPropertyDrawer : PropertyDrawer
         }
 
         EditorGUI.EndProperty();
-    }
-
-    public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
-    {
-        float lineH   = EditorGUIUtility.singleLineHeight;
-        float spacing = EditorGUIUtility.standardVerticalSpacing;
-        return lineH * 2 + spacing; // Preview + Scene
     }
 }

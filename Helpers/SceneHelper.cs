@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Collections;
 using CodexFramework.CodexEcsUnityIntegration;
 using CodexFramework.Gameplay.UI;
-using System.Collections;
 using CodexFramework.Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -11,11 +11,10 @@ namespace CodexFramework.Scenes
     [Serializable]
     public struct SceneEntry
     {
-        public Sprite Preview;
         public string ScenePath;
     }
     
-    public static class SceneHelper
+    public static partial class SceneHelper
     {
         private const float _minLoadTime = 0.0f;
 
@@ -28,12 +27,8 @@ namespace CodexFramework.Scenes
                 return;
             
             _loadStarted = true;
+            
             CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime, loadMode, onLoadComplete));
-
-            //AdsManager.Instance.ShowInter(() =>
-            //{
-            //    CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime));
-            //});
         }
 
         private static IEnumerator LoadSceneRoutine(string levelName, float minLoadTime,
@@ -58,7 +53,7 @@ namespace CodexFramework.Scenes
             {
                 _loadStarted = false;
                 onLoadComplete?.Invoke(levelName);
-                Time.timeScale = 1.0f;//restore time scale on load new scene
+                Time.timeScale = 1.0f;
             };
         }
 
