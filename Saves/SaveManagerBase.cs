@@ -101,7 +101,8 @@ namespace CodexFramework.Saves
                 if (sorted[i].Position == i)
                     continue;
 
-                var shifted = sorted[i].WithPosition(i);
+                var shifted = sorted[i];
+                shifted.Position = i;
                 sorted[i] = shifted;
 
 #if UNITY_STEAM
@@ -160,7 +161,7 @@ namespace CodexFramework.Saves
                 _saves[data.Position] = data;
             else
             {
-                data = data.WithPosition(_saves.Count);
+                data.Position = _saves.Count;
                 _saves.Add(data);
             }
 

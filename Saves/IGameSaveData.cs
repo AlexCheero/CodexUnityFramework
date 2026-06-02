@@ -12,7 +12,6 @@ namespace CodexFramework.Saves
 
         string ToJson();
         bool ContentEquals(T other);
-        T WithPosition(int position);
         DateTime GetLastSaveUtc();
         void StampSaveTime();
     }
