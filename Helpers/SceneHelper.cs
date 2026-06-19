@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using CodexFramework.CodexEcsUnityIntegration;
 using CodexFramework.Gameplay.UI;
 using CodexFramework.Helpers;
@@ -12,6 +13,16 @@ namespace CodexFramework.Scenes
     public struct SceneEntry
     {
         public string ScenePath;
+    }
+
+    public sealed class SceneEntryComparer : IEqualityComparer<SceneEntry>
+    {
+        public static readonly SceneEntryComparer Instance = new();
+
+        public bool Equals(SceneEntry x, SceneEntry y) => x.ScenePath == y.ScenePath;
+
+        public int GetHashCode(SceneEntry obj) =>
+            obj.ScenePath != null ? obj.ScenePath.GetHashCode() : 0;
     }
     
     public static partial class SceneHelper
