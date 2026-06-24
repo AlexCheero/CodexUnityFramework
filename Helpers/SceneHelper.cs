@@ -32,6 +32,13 @@ namespace CodexFramework.Scenes
         public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().name);
 
         private static bool _loadStarted;
+
+        public static void LoadScene(SceneEntry scene, LoadSceneMode loadMode = LoadSceneMode.Single,
+            Action<string> onLoadComplete = null)
+        {
+            LoadScene(scene.ScenePath, loadMode, onLoadComplete);
+        }
+        
         public static void LoadScene(string name, LoadSceneMode loadMode = LoadSceneMode.Single, Action<string> onLoadComplete = null)
         {
             if (_loadStarted)
