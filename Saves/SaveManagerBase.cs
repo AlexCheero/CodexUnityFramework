@@ -40,14 +40,16 @@ namespace CodexFramework.Saves
             var dirInfo = new DirectoryInfo(Application.persistentDataPath);
             foreach (var fileInfo in dirInfo.GetFiles())
             {
-                if (fileInfo.Name.StartsWith(_meta.FilePrefix) && LoadLocal(fileInfo.Name, out var saveData))
+                if (!fileInfo.Name.StartsWith(_meta.FilePrefix))
+                    continue;
+
+                var saveName = Path.GetFileNameWithoutExtension(fileInfo.Name);
+                if (LoadLocal(saveName, out var saveData))
                     localSaves.Add(saveData);
             }
 
-#if UNITY_STEAM
             if (localSaves != _saves)
                 _saves = MergeSaves(localSaves, _saves);
-#endif
 
             PlayerPrefs.SetString(_meta.VersionKey, Application.version);
             PlayerPrefs.Save();
@@ -214,7 +216,7 @@ namespace CodexFramework.Saves
             data = default;
             if (!File.Exists(GetLocalPath(fileName)))
             {
-                Debug.Log("[SaveManager] Local file not found. Creating new one");
+                Debug.Log($"[SaveManager] Local file not found: {GetLocalPath(fileName)}");
                 return false;
             }
 
