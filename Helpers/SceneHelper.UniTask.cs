@@ -20,6 +20,10 @@ namespace CodexFramework.Scenes
                 return UniTask.CompletedTask;
 
             _loadStarted = true;
+
+            OnSceneLoadStarted(name);
+            SceneLoadStarted?.Invoke(name);
+
             return LoadSceneAsyncCore(name, _minLoadTime, loadMode, cancellationToken);
         }
 
@@ -46,6 +50,9 @@ namespace CodexFramework.Scenes
 
                 asyncOp.allowSceneActivation = true;
                 await asyncOp.ToUniTask(cancellationToken: cancellationToken);
+
+                OnSceneLoadCompleted(levelName);
+                SceneLoadCompleted?.Invoke(levelName);
 
                 Time.timeScale = 1.0f;
             }
