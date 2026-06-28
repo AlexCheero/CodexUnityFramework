@@ -29,6 +29,14 @@ namespace CodexFramework.Scenes
     {
         private const float _minLoadTime = 0.0f;
 
+        // Cross-assembly extension point: other projects can subscribe to these.
+        public static event Action<string> SceneLoadStarted;
+        public static event Action<string> SceneLoadCompleted;
+
+        // In-assembly extension point (compile-time, zero cost if unimplemented).
+        static partial void OnSceneLoadStarted(string name);
+        static partial void OnSceneLoadCompleted(string name);
+
         public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().path);
 
         private static bool _loadStarted;
@@ -45,7 +53,10 @@ namespace CodexFramework.Scenes
                 return;
             
             _loadStarted = true;
-            
+
+            OnSceneLoadStarted(name);
+            SceneLoadStarted?.Invoke(name);
+
             CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime, loadMode, onLoadComplete));
         }
 
@@ -71,6 +82,8 @@ namespace CodexFramework.Scenes
             {
                 _loadStarted = false;
                 onLoadComplete?.Invoke(levelName);
+                OnSceneLoadCompleted(levelName);
+                SceneLoadCompleted?.Invoke(levelName);
                 Time.timeScale = 1.0f;
             };
         }
