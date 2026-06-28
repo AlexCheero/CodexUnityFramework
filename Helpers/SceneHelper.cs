@@ -29,7 +29,7 @@ namespace CodexFramework.Scenes
     {
         private const float _minLoadTime = 0.0f;
 
-        public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().name);
+        public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().path);
 
         private static bool _loadStarted;
 
