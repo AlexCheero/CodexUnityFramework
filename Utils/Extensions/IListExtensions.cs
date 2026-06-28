@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace CodexFramework.Utils
@@ -18,6 +19,18 @@ namespace CodexFramework.Utils
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T GetRandomItem<T>(this IList<T> list) => list[UnityEngine.Random.Range(0, list.Count)];
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int FindIndexOf<T>(this IList<T> list, Func<T, bool> predicate)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (predicate(list[i]))
+                    return i;
+            }
+
+            return -1;
+        }
 
         public delegate bool MergeSortComparator<T>(T a, T b);
         public static void InPlaceMergeSort<T>(this IList<T> list, MergeSortComparator<T> comparator, int low = 0) =>
