@@ -186,7 +186,7 @@ namespace CodexFramework.Saves
 
         public static void Delete(string fileName)
         {
-            var dataIdx = _saves.FindIndex(data => data.Name.Equals(fileName));
+            var dataIdx = _saves?.FindIndex(data => data.Name.Equals(fileName)) ?? -1;
             if (dataIdx != -1)
                 _saves.RemoveAt(dataIdx);
             if (File.Exists(GetLocalPath(fileName)))
