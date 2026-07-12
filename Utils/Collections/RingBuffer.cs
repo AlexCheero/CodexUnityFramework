@@ -8,6 +8,7 @@ namespace CodexFramework.Utils.Collections
         private int _start;
         private int _count;
         private readonly T[] _buffer;
+        private readonly T _empty;
         
         public ref T this[int idx]
         {
@@ -40,7 +41,16 @@ namespace CodexFramework.Utils.Collections
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public RingBuffer(int capacity) => _buffer = new T[capacity];
+        public RingBuffer(int capacity) : this(capacity, default) { }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public RingBuffer(int capacity, T empty)
+        {
+            _empty = empty;
+            _buffer = new T[capacity];
+            for (int i = 0; i < capacity; i++)
+                _buffer[i] = empty;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public RingBuffer(T[] values) => _buffer = values;
@@ -72,7 +82,7 @@ namespace CodexFramework.Utils.Collections
             if (full)
             {
                 for (int i = 0; i < _buffer.Length; i++)
-                    _buffer[i] = default;
+                    _buffer[i] = _empty;
             }
         }
 
@@ -82,7 +92,7 @@ namespace CodexFramework.Utils.Collections
             if (idx < 0 || idx >= _count)
                 throw new IndexOutOfRangeException();
             
-            this[idx] = default;
+            this[idx] = _empty;
             if (idx > _count / 2)
             {
                 //move backwards
