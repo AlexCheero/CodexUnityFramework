@@ -3,9 +3,9 @@ using System;
 namespace CodexFramework.AssignableFunctors
 {
     /// <summary>
-    /// Non-generic root for SerializeReference + inspector drawer.
-    /// Prefer declaring fields as a closed alias (e.g. <c>IntRetIntFunctor</c>) or
-    /// a closed generic (<c>AssignableFunctor&lt;int, int&gt;</c>) with [SerializeReference].
+    /// Func-like serializable hierarchy. Mark fields with [SerializeReference].
+    /// Drawer: AssignableFunctorDrawer (inherits SerializeReferenceDrawer&lt;AssignableFunctor&gt;).
+    /// Prefer closed aliases (e.g. <c>IntRetIntFunctor</c>) as field types.
     /// </summary>
     [Serializable]
     public abstract class AssignableFunctor

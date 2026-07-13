@@ -1,28 +1,30 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
+using UnityEngine;
+using Object = UnityEngine.Object;
 
-namespace CodexFramework.AssignableFunctors.Editor
+namespace CodexFramework.SerializeReferenceDrawing.Editor
 {
-    internal static class AssignableFunctorTypeCache
+    internal static class SerializeReferenceTypeCache
     {
         private static readonly Dictionary<Type, Type[]> Cache = new();
 
         public static Type[] GetConcreteTypes(Type fieldType)
         {
-            if (fieldType == null)
+            if (fieldType == null || fieldType == typeof(object))
                 return Array.Empty<Type>();
 
             if (Cache.TryGetValue(fieldType, out var cached))
                 return cached;
 
             var derived = TypeCache.GetTypesDerivedFrom(fieldType)
-                .Where(IsConcreteAssignableFunctor)
-                .OrderBy(t => t.Name, StringComparer.Ordinal);
+                .Where(IsSelectableType);
 
             var list = new List<Type>();
-            if (IsConcreteAssignableFunctor(fieldType))
+            if (IsSelectableType(fieldType))
                 list.Add(fieldType);
             list.AddRange(derived);
 
@@ -37,11 +39,22 @@ namespace CodexFramework.AssignableFunctors.Editor
 
         public static void Clear() => Cache.Clear();
 
-        private static bool IsConcreteAssignableFunctor(Type type)
+        private static bool IsSelectableType(Type type)
         {
             if (type == null || type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition)
                 return false;
-            return typeof(AssignableFunctor).IsAssignableFrom(type);
+            if (typeof(Object).IsAssignableFrom(type))
+                return false;
+            if (type.IsValueType)
+                return false;
+            // SerializeReference requires [Serializable] on concrete implementations.
+            if (!type.IsDefined(typeof(SerializableAttribute), inherit: false))
+                return false;
+            if (type.GetCustomAttribute<ObsoleteAttribute>() != null)
+                return false;
+
+            var ctor = type.GetConstructor(Type.EmptyTypes);
+            return ctor != null && ctor.IsPublic;
         }
 
         public static Type ResolveManagedReferenceType(string managedReferenceTypeName)

@@ -2,10 +2,10 @@ using System;
 
 namespace CodexFramework.AssignableFunctors
 {
-    // Closed aliases make inspector typing reliable and keep field declarations short.
-    // Add new aliases the same way for any generic argument set you need:
-    //   [Serializable] public abstract class FloatRetBoolFunctor : AssignableFunctor<float, bool> { }
-    // Then implement concrete classes that extend the alias (those show up in the dropdown).
+    // Closed aliases keep field declarations short and reliable with [SerializeReference].
+    // Add more the same way:
+    //   [Serializable] public abstract class MyAlias : AssignableFunctor<In, Out> { }
+    // Concrete classes extending the alias appear in the inspector dropdown.
 
     [Serializable]
     public abstract class IntRetIntFunctor : AssignableFunctor<int, int>

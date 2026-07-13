@@ -2,24 +2,24 @@ using System;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
 
-namespace CodexFramework.AssignableFunctors.Editor
+namespace CodexFramework.SerializeReferenceDrawing.Editor
 {
-    internal sealed class AssignableFunctorDropdown : AdvancedDropdown
+    internal sealed class SerializeReferenceTypeDropdown : AdvancedDropdown
     {
         private readonly Type[] _types;
         private readonly Action<Type> _onSelected;
 
-        public AssignableFunctorDropdown(AdvancedDropdownState state, Type[] types, Action<Type> onSelected)
+        public SerializeReferenceTypeDropdown(AdvancedDropdownState state, Type[] types, Action<Type> onSelected)
             : base(state)
         {
             _types = types ?? Array.Empty<Type>();
             _onSelected = onSelected;
-            minimumSize = new Vector2(240f, 280f);
+            minimumSize = new Vector2(260f, 300f);
         }
 
         protected override AdvancedDropdownItem BuildRoot()
         {
-            var root = new AdvancedDropdownItem("Assignable Functors");
+            var root = new AdvancedDropdownItem("Types");
             root.AddChild(new Item("None", null));
 
             for (var i = 0; i < _types.Length; i++)

@@ -4,15 +4,17 @@ using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
 
-namespace CodexFramework.AssignableFunctors.Editor
+namespace CodexFramework.SerializeReferenceDrawing.Editor
 {
-    [CustomPropertyDrawer(typeof(AssignableFunctor), true)]
-    [CustomPropertyDrawer(typeof(AssignableFunctor<>), true)]
-    [CustomPropertyDrawer(typeof(AssignableFunctor<,>), true)]
-    [CustomPropertyDrawer(typeof(AssignableFunctor<,,>), true)]
-    [CustomPropertyDrawer(typeof(AssignableFunctor<,,,>), true)]
-    [CustomPropertyDrawer(typeof(AssignableFunctor<,,,,>), true)]
-    public class AssignableFunctorDrawer : PropertyDrawer
+    /// <summary>
+    /// Base drawer for polymorphic [SerializeReference] fields of type <typeparamref name="TBase"/>.
+    /// Unity cannot register open generic drawers — define a thin concrete subclass:
+    /// <code>
+    /// [CustomPropertyDrawer(typeof(MyBase), true)]
+    /// public sealed class MyBaseDrawer : SerializeReferenceDrawer&lt;MyBase&gt; { }
+    /// </code>
+    /// </summary>
+    public abstract class SerializeReferenceDrawer<TBase> : PropertyDrawer where TBase : class
     {
         private static readonly AdvancedDropdownState DropdownState = new();
 
@@ -50,7 +52,7 @@ namespace CodexFramework.AssignableFunctors.Editor
             {
                 EditorGUI.HelpBox(
                     position,
-                    $"{label.text}: use [SerializeReference] on AssignableFunctor fields.",
+                    $"{label.text}: use [SerializeReference] on {typeof(TBase).Name} fields.",
                     MessageType.Warning
                 );
                 EditorGUI.EndProperty();
@@ -62,8 +64,7 @@ namespace CodexFramework.AssignableFunctors.Editor
 
             var fieldType = GetDeclaredFieldType(property);
             var currentType = property.managedReferenceValue?.GetType();
-            var hasValue = currentType != null;
-            var hasChildren = hasValue && HasVisibleChildren(property);
+            var hasChildren = currentType != null && HasVisibleChildren(property);
 
             if (hasChildren)
             {
@@ -86,14 +87,14 @@ namespace CodexFramework.AssignableFunctors.Editor
                 lineHeight
             );
 
-            var typeLabel = currentType != null ? currentType.Name : "None";
+            var typeLabel = ResolveTypeLabel(property, currentType);
             if (EditorGUI.DropdownButton(dropdownRect, new GUIContent(typeLabel), FocusType.Keyboard))
             {
-                var types = AssignableFunctorTypeCache.GetConcreteTypes(fieldType);
+                var types = SerializeReferenceTypeCache.GetConcreteTypes(fieldType);
                 var propertyPath = property.propertyPath;
                 var serializedObject = property.serializedObject;
 
-                var dropdown = new AssignableFunctorDropdown(DropdownState, types, selectedType =>
+                var dropdown = new SerializeReferenceTypeDropdown(DropdownState, types, selectedType =>
                 {
                     serializedObject.Update();
                     var targetProp = serializedObject.FindProperty(propertyPath);
@@ -140,12 +141,36 @@ namespace CodexFramework.AssignableFunctors.Editor
             if (fieldInfo != null)
             {
                 var type = UnwrapCollectionElementType(fieldInfo.FieldType);
-                if (type != null && typeof(AssignableFunctor).IsAssignableFrom(type))
+                if (type != null && typeof(TBase).IsAssignableFrom(type))
                     return type;
             }
 
-            return AssignableFunctorTypeCache.ResolveManagedReferenceType(property.managedReferenceFieldTypename)
-                   ?? typeof(AssignableFunctor);
+            var fromManaged = SerializeReferenceTypeCache.ResolveManagedReferenceType(
+                property.managedReferenceFieldTypename
+            );
+            if (fromManaged != null && typeof(TBase).IsAssignableFrom(fromManaged))
+                return fromManaged;
+
+            return typeof(TBase);
+        }
+
+        private static string ResolveTypeLabel(SerializedProperty property, Type currentType)
+        {
+            if (currentType != null)
+                return currentType.Name;
+
+            // Missing/corrupt managed reference still has a typename string.
+            var fullName = property.managedReferenceFullTypename;
+            if (!string.IsNullOrEmpty(fullName))
+            {
+                var resolved = SerializeReferenceTypeCache.ResolveManagedReferenceType(fullName);
+                if (resolved != null)
+                    return resolved.Name;
+                var split = fullName.LastIndexOf(' ');
+                return split >= 0 ? fullName.Substring(split + 1) : fullName;
+            }
+
+            return "None";
         }
 
         private static Type UnwrapCollectionElementType(Type type)
