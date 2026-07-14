@@ -22,6 +22,8 @@ namespace CodexFramework.Utils
 {
     public static class UtilityMethods
     {
+        public static string PaintString(this string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGBA(color)}>{text}</color>";
+
         public static int GetMask(params int[] layers)
         {
             int mask = 0;
