@@ -46,6 +46,9 @@ namespace CodexFramework.Utils
 
         public static bool RemoveDefaults<T>(this IList<T> list)
         {
+            if (list.Count == 0)
+                return false;
+            
             int shift = 0;
             for (int i = 0; i < list.Count; i++)
             {
@@ -67,6 +70,9 @@ namespace CodexFramework.Utils
         
         public static bool RemoveDefaults<T>(this T[] arr)
         {
+            if (arr.Length == 0)
+                return false;
+            
             var shift = 0;
             for (int i = 0; i < arr.Length; i++)
             {
