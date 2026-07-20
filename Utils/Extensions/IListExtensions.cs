@@ -31,6 +31,59 @@ namespace CodexFramework.Utils
 
             return -1;
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int FindIndexOf<T>(this IList<T> list, T element)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (EqualityComparer<T>.Default.Equals(list[i], element))
+                    return i;
+            }
+
+            return -1;
+        }
+
+        public static bool RemoveDefaults<T>(this IList<T> list)
+        {
+            int shift = 0;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (EqualityComparer<T>.Default.Equals(list[i], default))
+                {
+                    shift++;
+                }
+                else if (shift > 0)
+                {
+                    list[i - shift] = list[i];
+                }
+            }
+            
+            for (int i = 0; i < shift; i++)
+                list.RemoveAt(list.Count - 1);
+
+            return shift > 0;
+        }
+        
+        public static bool RemoveDefaults<T>(this T[] arr)
+        {
+            var shift = 0;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                if (EqualityComparer<T>.Default.Equals(arr[i], default))
+                {
+                    shift++;
+                }
+                else if (shift > 0)
+                {
+                    arr[i - shift] = arr[i];
+                }
+            }
+
+            Array.Resize(ref arr, arr.Length - shift);
+            
+            return shift > 0;
+        }
 
         public delegate bool MergeSortComparator<T>(T a, T b);
         public static void InPlaceMergeSort<T>(this IList<T> list, MergeSortComparator<T> comparator, int low = 0) =>
