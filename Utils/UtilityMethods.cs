@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using TMPro;
+using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
@@ -23,6 +24,10 @@ namespace CodexFramework.Utils
     public static class UtilityMethods
     {
         public static string PaintString(this string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGBA(color)}>{text}</color>";
+        public static string PaintString(this string text, Vector3 color, float alpha = 1f) => text.PaintString(new Color(color.x, color.y, color.z, alpha));
+        public static string PaintString(this string text, Vector4 color) => text.PaintString(new Color(color.x, color.y, color.z, color.w));
+        public static string PaintString(this string text, float3 color, float alpha = 1f) => text.PaintString(new Color(color.x, color.y, color.z, alpha));
+        public static string PaintString(this string text, float4 color) => text.PaintString(new Color(color.x, color.y, color.z, color.w));
 
         public static int GetMask(params int[] layers)
         {
