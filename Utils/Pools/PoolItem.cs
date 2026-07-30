@@ -28,9 +28,12 @@ namespace CodexFramework.Utils.Pools
         private int _initialCount = 2;
         [SerializeField]
         private int _maxCount = -1;
+        [SerializeField]
+        private int _growPerFrame = 1;
         
         public int InitialCount => _initialCount;
         public int MaxCount => _maxCount;
+        public int GrowPerFrame => _growPerFrame;
         
         [SerializeField]
         private ObjectPool _pool;

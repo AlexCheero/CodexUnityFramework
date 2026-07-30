@@ -8,10 +8,10 @@ namespace CodexFramework.Utils.Pools
 {
     public class ObjectPool : MonoBehaviour
     {
-        private const int GROW_PER_FRAME = 1;
-        
         [SerializeField]
         private int _maxCount = -1;
+        [SerializeField]
+        private int _growPerFrame = 1;
         [SerializeField]
         private PoolItem _prototype;
         [SerializeField]
@@ -27,6 +27,14 @@ namespace CodexFramework.Utils.Pools
         {
             _prototype = prototype;
             _maxCount = maxCount;
+            _growPerFrame = prototype.GrowPerFrame;
+#if DEBUG
+            if (_growPerFrame < 1)
+            {
+                Debug.LogError("should add at least one object per frame");
+                _growPerFrame = 1;
+            }
+#endif
             var count = _maxCount > 0 ? _maxCount : initialCount;
 
             if (_prototype.gameObject.scene.IsValid())
@@ -40,11 +48,11 @@ namespace CodexFramework.Utils.Pools
                 _prototype.AddToPool(this, 0);
                 _prototype.gameObject.SetActive(false);
                 
-                StartCoroutine(GrowRoutine(GROW_PER_FRAME));
+                StartCoroutine(GrowRoutine(_growPerFrame));
             }
             else
             {
-                Grow(GROW_PER_FRAME, count);
+                Grow(_growPerFrame, count);
             }
         }
 
@@ -57,7 +65,7 @@ namespace CodexFramework.Utils.Pools
             if (_firstAvailable == _items.Length)
             {
                 if (_maxCount < 1)
-                    Grow(GROW_PER_FRAME);
+                    Grow(_growPerFrame);
                 else
                 {
                     for (var i = _items.Length - 1; i > -1; i--)
@@ -112,7 +120,7 @@ namespace CodexFramework.Utils.Pools
             if (_firstAvailable == _items.Length)
             {
                 if (_maxCount < 1)
-                    await GrowAsync(GROW_PER_FRAME);
+                    await GrowAsync(_growPerFrame);
                 else
                 {
                     for (var i = _items.Length - 1; i > -1; i--)
@@ -135,7 +143,7 @@ namespace CodexFramework.Utils.Pools
                 if (_maxCount > 0)
                     throw new Exception("can't grow fixed pool");
 #endif
-                await GrowAsync(GROW_PER_FRAME, _firstAvailable + 1);
+                await GrowAsync(_growPerFrame, _firstAvailable + 1);
             }
 
             while (_firstAvailable < _items.Length && _items[_firstAvailable] == null)
