@@ -113,7 +113,7 @@ namespace CodexFramework.Utils.Pools
                 if (_maxCount > 0)
                     throw new Exception("can't grow fixed pool");
 #endif
-                Grow(_growPerFrame, _firstAvailable + 1);
+                Grow(_growPerFrame, Math.Max(_firstAvailable + 1, _items.Length));
             }
 
             while (_firstAvailable < _items.Length && _items[_firstAvailable] == null)
@@ -135,11 +135,10 @@ namespace CodexFramework.Utils.Pools
 
         private void Grow(int growPerFrame, int minDesiredSize)
         {
-#if UNITY_EDITOR
             var currentSize = _items?.Length ?? 0;
             if (minDesiredSize < currentSize)
-                throw new Exception("minDesiredSize can't be smaller than _objects.Length");
-#endif
+                minDesiredSize = currentSize;
+
             const int maxResizeDelta = 64;
             CodexECS.Utility.Utils.ResizeArray(minDesiredSize - 1, ref _items, maxResizeDelta);
 
