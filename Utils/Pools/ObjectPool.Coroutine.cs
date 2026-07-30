@@ -80,57 +80,61 @@ namespace CodexFramework.Utils.Pools
             if (_firstAvailable > _items.Length)
                 throw new Exception("_firstAvailable can't be bigger than _objects.Length");
 #endif
-            if (_firstAvailable == _items.Length)
+            while (true)
             {
+                if (_firstAvailable < _items.Length && _items[_firstAvailable] != null)
+                {
+                    var item = _items[_firstAvailable];
+                    item.gameObject.SetActive(true);
+                    _firstAvailable++;
+                    item.OnGetFromPool();
+                    onReady?.Invoke(item);
+                    yield break;
+                }
+
+                if (_firstAvailable < _items.Length)
+                {
+                    if (!forceGrow)
+                    {
+                        onReady?.Invoke(null);
+                        yield break;
+                    }
+
+#if UNITY_EDITOR
+                    if (_maxCount > 0)
+                        throw new Exception("can't grow fixed pool");
+#endif
+                    Grow(_growPerFrame, Math.Max(_firstAvailable + 1, _items.Length));
+                    while (_firstAvailable < _items.Length && _items[_firstAvailable] == null)
+                        yield return null;
+                    continue;
+                }
+
                 if (_maxCount < 1)
                 {
                     Grow(_growPerFrame);
                     while (_isGrowing)
                         yield return null;
+                    continue;
                 }
-                else
-                {
-                    for (var i = _items.Length - 1; i > -1; i--)
-                    {
-                        var poolItem = _items[i];
-                        if (poolItem == null || poolItem.IsInPool)
-                            continue;
-                        ReturnItem(poolItem);
-                        break;
-                    }
-                }
-            }
 
-            if (_items[_firstAvailable] == null)
-            {
-                if (!forceGrow)
+                var reclaimed = false;
+                for (var i = _items.Length - 1; i > -1; i--)
+                {
+                    var poolItem = _items[i];
+                    if (poolItem == null || poolItem.IsInPool)
+                        continue;
+                    ReturnItem(poolItem);
+                    reclaimed = true;
+                    break;
+                }
+
+                if (!reclaimed)
                 {
                     onReady?.Invoke(null);
                     yield break;
                 }
-
-#if UNITY_EDITOR
-                if (_maxCount > 0)
-                    throw new Exception("can't grow fixed pool");
-#endif
-                Grow(_growPerFrame, Math.Max(_firstAvailable + 1, _items.Length));
             }
-
-            while (_firstAvailable < _items.Length && _items[_firstAvailable] == null)
-                yield return null;
-
-            if (_firstAvailable >= _items.Length || _items[_firstAvailable] == null)
-            {
-                onReady?.Invoke(null);
-                yield break;
-            }
-
-            var item = _items[_firstAvailable];
-            item.gameObject.SetActive(true);
-            _firstAvailable++;
-
-            item.OnGetFromPool();
-            onReady?.Invoke(item);
         }
 
         private void Grow(int growPerFrame, int minDesiredSize)
