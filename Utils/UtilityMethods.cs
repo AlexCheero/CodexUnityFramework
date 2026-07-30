@@ -1,7 +1,3 @@
-using CodexECS;
-using CodexFramework.CodexEcsUnityIntegration.Views;
-using CodexFramework.Utils.Pools;
-using Cysharp.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -404,63 +400,6 @@ namespace CodexFramework.Utils
             return weightedObjects.First().Value;
         }
         
-        public static EntityView GetPooledEntityView(PooledEntityView prototype, EcsWorld world)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var view = pool.Get().GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
-        public static async UniTask<EntityView> GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var item = await pool.GetAsync();
-            if (item == null)
-                return null;
-            var view = item.GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
-        public static EntityView GetPooledEntityView(PooledEntityView prototype, EcsWorld world, Vector3 position)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var view = pool.Get(position).GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
-        public static async UniTask<EntityView> GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world, Vector3 position)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var item = await pool.GetAsync(position);
-            if (item == null)
-                return null;
-            var view = item.GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
-        public static EntityView GetPooledEntityView(PooledEntityView prototype, EcsWorld world, Vector3 position, Quaternion rotation)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var view = pool.Get(position, rotation).GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
-        public static async UniTask<EntityView> GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world, Vector3 position, Quaternion rotation)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var item = await pool.GetAsync(position, rotation);
-            if (item == null)
-                return null;
-            var view = item.GetComponentAndCache<EntityView>();
-            view.InitAsEntity(world);
-            return view;
-        }
-
         public static Mesh BakeMesh(
             SkinnedMeshRenderer[] skins,
             MeshFilter[] meshes,
