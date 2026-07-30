@@ -129,6 +129,23 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
+        public void AllocateAll()
+        {
+            if (_maxCount < 1)
+            {
+#if DEBUG
+                Debug.LogError("AllocateAll is only for fixed pools");
+#endif
+                return;
+            }
+
+            const int maxResizeDelta = 64;
+            CodexECS.Utility.Utils.ResizeArray(_maxCount - 1, ref _items, maxResizeDelta);
+
+            for (int i = 0; i < _items.Length; i++)
+                AddNew(i);
+        }
+
         private void Grow(int growPerFrame) => Grow(growPerFrame, _items.Length + 1);
 
         private void AddNew(int idx)
