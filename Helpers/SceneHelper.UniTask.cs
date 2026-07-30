@@ -1,6 +1,6 @@
-// UniTask has no global define; enable overloads by adding UNITASK_SUPPORT to Scripting Define Symbols
+// UniTask has no global define; enable overloads by adding CODEX_UNITASK_SUPPORT to Scripting Define Symbols
 // or via an asmdef versionDefine on com.cysharp.unitask.
-#if UNITASK_SUPPORT
+#if CODEX_UNITASK_SUPPORT
 using System;
 using System.Threading;
 using CodexFramework.CodexEcsUnityIntegration;
