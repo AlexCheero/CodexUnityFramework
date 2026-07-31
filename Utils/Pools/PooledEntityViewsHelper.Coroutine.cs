@@ -9,20 +9,20 @@ namespace CodexFramework.Utils.Pools
     public static partial class PooledEntityViewsHelper
     {
         public static void GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world) =>
-            PoolManager.Instance.GetByPrototype(prototype.Item).GetAsync(world, OnInitPooledEntityView);
+            PoolManager.Instance.GetByPrototype(prototype.Item).GetAsync(world, OnInitPooledEntityViewAction);
 
         public static void GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world, Vector3 position) =>
-            PoolManager.Instance.GetByPrototype(prototype.Item).GetAsync(position, world, OnInitPooledEntityView);
+            PoolManager.Instance.GetByPrototype(prototype.Item).GetAsync(position, world, OnInitPooledEntityViewAction);
 
         public static void GetPooledEntityViewAsync(
             PooledEntityView prototype,
             EcsWorld world,
             Vector3 position,
             Quaternion rotation) =>
-            PoolManager.Instance.GetByPrototype(prototype.Item).GetAsync(position, rotation, world, OnInitPooledEntityView);
+            PoolManager.Instance.GetByPrototype(prototype.Item).GetAsync(position, rotation, world, OnInitPooledEntityViewAction);
 
         public static void GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world, Action<EntityView> onReady) =>
-            GetPooledEntityViewAsync(prototype, world, onReady, OnActionEntityViewReady);
+            GetPooledEntityViewAsync(prototype, world, onReady, OnActionEntityViewReadyAction);
 
         public static void GetPooledEntityViewAsync<TState>(
             PooledEntityView prototype,
@@ -37,7 +37,7 @@ namespace CodexFramework.Utils.Pools
                 State = state,
                 OnReady = onReady
             };
-            pool.GetAsync(payload, OnEntityViewSpawned);
+            pool.GetAsync(payload, EntityViewSpawnedCache<TState>.Action);
         }
 
         public static void GetPooledEntityViewAsync(
@@ -45,7 +45,7 @@ namespace CodexFramework.Utils.Pools
             EcsWorld world,
             Vector3 position,
             Action<EntityView> onReady) =>
-            GetPooledEntityViewAsync(prototype, world, position, onReady, OnActionEntityViewReady);
+            GetPooledEntityViewAsync(prototype, world, position, onReady, OnActionEntityViewReadyAction);
 
         public static void GetPooledEntityViewAsync<TState>(
             PooledEntityView prototype,
@@ -61,7 +61,7 @@ namespace CodexFramework.Utils.Pools
                 State = state,
                 OnReady = onReady
             };
-            pool.GetAsync(position, payload, OnEntityViewSpawned);
+            pool.GetAsync(position, payload, EntityViewSpawnedCache<TState>.Action);
         }
 
         public static void GetPooledEntityViewAsync(
@@ -70,7 +70,7 @@ namespace CodexFramework.Utils.Pools
             Vector3 position,
             Quaternion rotation,
             Action<EntityView> onReady) =>
-            GetPooledEntityViewAsync(prototype, world, position, rotation, onReady, OnActionEntityViewReady);
+            GetPooledEntityViewAsync(prototype, world, position, rotation, onReady, OnActionEntityViewReadyAction);
 
         public static void GetPooledEntityViewAsync<TState>(
             PooledEntityView prototype,
@@ -87,7 +87,7 @@ namespace CodexFramework.Utils.Pools
                 State = state,
                 OnReady = onReady
             };
-            pool.GetAsync(position, rotation, payload, OnEntityViewSpawned);
+            pool.GetAsync(position, rotation, payload, EntityViewSpawnedCache<TState>.Action);
         }
     }
 }

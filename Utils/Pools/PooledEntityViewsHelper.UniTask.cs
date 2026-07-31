@@ -62,7 +62,7 @@ namespace CodexFramework.Utils.Pools
                 State = state,
                 OnReady = onReady
             };
-            pool.GetAsync(payload, OnEntityViewSpawned);
+            pool.GetAsync(payload, EntityViewSpawnedCache<TState>.Action);
         }
 
         public static void GetPooledEntityViewAsync(
@@ -96,7 +96,7 @@ namespace CodexFramework.Utils.Pools
                 State = state,
                 OnReady = onReady
             };
-            pool.GetAsync(position, payload, OnEntityViewSpawned);
+            pool.GetAsync(position, payload, EntityViewSpawnedCache<TState>.Action);
         }
 
         public static void GetPooledEntityViewAsync(
@@ -133,7 +133,7 @@ namespace CodexFramework.Utils.Pools
                 State = state,
                 OnReady = onReady
             };
-            pool.GetAsync(position, rotation, payload, OnEntityViewSpawned);
+            pool.GetAsync(position, rotation, payload, EntityViewSpawnedCache<TState>.Action);
         }
     }
 }

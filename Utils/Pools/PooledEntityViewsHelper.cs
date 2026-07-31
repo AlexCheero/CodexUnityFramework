@@ -1,3 +1,4 @@
+using System;
 using CodexECS;
 using CodexFramework.CodexEcsUnityIntegration.Views;
 using UnityEngine;
@@ -39,6 +40,8 @@ namespace CodexFramework.Utils.Pools
             return view;
         }
 
+        private static readonly Action<PoolItem, EcsWorld> OnInitPooledEntityViewAction = OnInitPooledEntityView;
+
         private static void OnInitPooledEntityView(PoolItem item, EcsWorld world) =>
             InitView(item, world);
 
@@ -46,7 +49,12 @@ namespace CodexFramework.Utils.Pools
         {
             public EcsWorld World;
             public TState State;
-            public System.Action<EntityView, TState> OnReady;
+            public Action<EntityView, TState> OnReady;
+        }
+
+        private static class EntityViewSpawnedCache<TState>
+        {
+            public static readonly Action<PoolItem, EntityViewSpawnPayload<TState>> Action = OnEntityViewSpawned;
         }
 
         private static void OnEntityViewSpawned<TState>(PoolItem item, EntityViewSpawnPayload<TState> payload)
@@ -56,7 +64,9 @@ namespace CodexFramework.Utils.Pools
                 payload.OnReady?.Invoke(view, payload.State);
         }
 
-        private static void OnActionEntityViewReady(EntityView view, System.Action<EntityView> onReady) =>
+        private static readonly Action<EntityView, Action<EntityView>> OnActionEntityViewReadyAction = OnActionEntityViewReady;
+
+        private static void OnActionEntityViewReady(EntityView view, Action<EntityView> onReady) =>
             onReady?.Invoke(view);
     }
 }
