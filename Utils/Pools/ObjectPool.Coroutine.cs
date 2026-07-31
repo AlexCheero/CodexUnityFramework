@@ -13,20 +13,45 @@ namespace CodexFramework.Utils.Pools
                 StartCoroutine(GrowRoutine(_growPerFrame));
         }
 
-        public void GetAsync(Action<PoolItem> onReady, bool forceGrow = true) =>
+        public void GetAsync(Action<PoolItem> onReady, bool forceGrow = true)
+        {
+            if (TryGet(out var item))
+            {
+                onReady?.Invoke(item);
+                return;
+            }
+
             StartCoroutine(GetAsyncRoutine(onReady, forceGrow));
+        }
 
         private IEnumerator GetAsyncRoutine(Action<PoolItem> onReady, bool forceGrow) =>
             GetAsyncCore(forceGrow, onReady);
 
-        public void GetAsync<TState>(TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
+        public void GetAsync<TState>(TState state, Action<PoolItem, TState> onReady, bool forceGrow = true)
+        {
+            if (TryGet(out var item))
+            {
+                onReady?.Invoke(item, state);
+                return;
+            }
+
             StartCoroutine(GetAsyncRoutine(state, onReady, forceGrow));
+        }
 
         private IEnumerator GetAsyncRoutine<TState>(TState state, Action<PoolItem, TState> onReady, bool forceGrow) =>
             GetAsyncCore(forceGrow, item => onReady?.Invoke(item, state));
 
-        public void GetAsync(Vector3 position, Action<PoolItem> onReady, bool forceGrow = true) =>
+        public void GetAsync(Vector3 position, Action<PoolItem> onReady, bool forceGrow = true)
+        {
+            if (TryGet(out var item))
+            {
+                item.transform.position = position;
+                onReady?.Invoke(item);
+                return;
+            }
+
             StartCoroutine(GetAsyncRoutine(position, onReady, forceGrow));
+        }
 
         private IEnumerator GetAsyncRoutine(Vector3 position, Action<PoolItem> onReady, bool forceGrow) =>
             GetAsyncCore(forceGrow, item =>
@@ -36,8 +61,17 @@ namespace CodexFramework.Utils.Pools
                 onReady?.Invoke(item);
             });
 
-        public void GetAsync<TState>(Vector3 position, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
+        public void GetAsync<TState>(Vector3 position, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true)
+        {
+            if (TryGet(out var item))
+            {
+                item.transform.position = position;
+                onReady?.Invoke(item, state);
+                return;
+            }
+
             StartCoroutine(GetAsyncRoutine(position, state, onReady, forceGrow));
+        }
 
         private IEnumerator GetAsyncRoutine<TState>(Vector3 position, TState state, Action<PoolItem, TState> onReady, bool forceGrow) =>
             GetAsyncCore(forceGrow, item =>
@@ -47,8 +81,17 @@ namespace CodexFramework.Utils.Pools
                 onReady?.Invoke(item, state);
             });
 
-        public void GetAsync(Vector3 position, Quaternion rotation, Action<PoolItem> onReady, bool forceGrow = true) =>
+        public void GetAsync(Vector3 position, Quaternion rotation, Action<PoolItem> onReady, bool forceGrow = true)
+        {
+            if (TryGet(out var item))
+            {
+                item.transform.SetPositionAndRotation(position, rotation);
+                onReady?.Invoke(item);
+                return;
+            }
+
             StartCoroutine(GetAsyncRoutine(position, rotation, onReady, forceGrow));
+        }
 
         private IEnumerator GetAsyncRoutine(Vector3 position, Quaternion rotation, Action<PoolItem> onReady, bool forceGrow) =>
             GetAsyncCore(forceGrow, item =>
@@ -58,8 +101,17 @@ namespace CodexFramework.Utils.Pools
                 onReady?.Invoke(item);
             });
 
-        public void GetAsync<TState>(Vector3 position, Quaternion rotation, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
+        public void GetAsync<TState>(Vector3 position, Quaternion rotation, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true)
+        {
+            if (TryGet(out var item))
+            {
+                item.transform.SetPositionAndRotation(position, rotation);
+                onReady?.Invoke(item, state);
+                return;
+            }
+
             StartCoroutine(GetAsyncRoutine(position, rotation, state, onReady, forceGrow));
+        }
 
         private IEnumerator GetAsyncRoutine<TState>(
             Vector3 position,
@@ -82,12 +134,8 @@ namespace CodexFramework.Utils.Pools
 #endif
             while (true)
             {
-                if (_firstAvailable < _items.Length && _items[_firstAvailable] != null)
+                if (TryGet(out var item))
                 {
-                    var item = _items[_firstAvailable];
-                    item.gameObject.SetActive(true);
-                    _firstAvailable++;
-                    item.OnGetFromPool();
                     onReady?.Invoke(item);
                     yield break;
                 }

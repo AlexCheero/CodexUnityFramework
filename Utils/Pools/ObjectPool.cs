@@ -24,6 +24,21 @@ namespace CodexFramework.Utils.Pools
 
         partial void BeginInitialGrow();
 
+        public bool TryGet(out PoolItem item)
+        {
+            if (_firstAvailable < _items.Length && _items[_firstAvailable] != null)
+            {
+                item = _items[_firstAvailable];
+                item.gameObject.SetActive(true);
+                _firstAvailable++;
+                item.OnGetFromPool();
+                return true;
+            }
+
+            item = null;
+            return false;
+        }
+
         public void Init(PoolItem prototype, int initialCount, int maxCount)
         {
             _prototype = prototype;
