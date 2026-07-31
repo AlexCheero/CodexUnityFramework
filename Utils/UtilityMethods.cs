@@ -10,6 +10,9 @@ using UnityEngine.AI;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
+#if CODEX_UNITASK_SUPPORT
+using Cysharp.Threading.Tasks;
+#endif
 
 #if UNITY_EDITOR
 using System.Reflection;
@@ -19,6 +22,40 @@ namespace CodexFramework.Utils
 {
     public static class UtilityMethods
     {
+#if CODEX_UNITASK_SUPPORT
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ForgetWithCaller(this UniTask task)
+        {
+            var startTrace = new System.Diagnostics.StackTrace(1, true);
+            Cysharp.Threading.Tasks.UniTaskExtensions.Forget(task, ex =>
+            {
+                Debug.LogException(ex);
+                Debug.LogError("UniTask started at:\n" + startTrace);
+            });
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ForgetWithCaller<T>(this UniTask<T> task)
+        {
+            var startTrace = new System.Diagnostics.StackTrace(1, true);
+            Cysharp.Threading.Tasks.UniTaskExtensions.Forget(task, ex =>
+            {
+                Debug.LogException(ex);
+                Debug.LogError("UniTask started at:\n" + startTrace);
+            });
+        }
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ForgetWithCaller(this UniTask task) =>
+            Cysharp.Threading.Tasks.UniTaskExtensions.Forget(task);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ForgetWithCaller<T>(this UniTask<T> task) =>
+            Cysharp.Threading.Tasks.UniTaskExtensions.Forget(task);
+#endif
+#endif
+
         public static string PaintString(this string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGBA(color)}>{text}</color>";
         public static string PaintString(this string text, Vector3 color, float alpha = 1f) => text.PaintString(new Color(color.x, color.y, color.z, alpha));
         public static string PaintString(this string text, Vector4 color) => text.PaintString(new Color(color.x, color.y, color.z, color.w));
