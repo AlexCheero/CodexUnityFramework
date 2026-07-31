@@ -134,6 +134,12 @@ namespace CodexFramework.Utils.Pools
 #endif
             while (true)
             {
+                if (!this)
+                {
+                    onReady?.Invoke(null);
+                    yield break;
+                }
+
                 if (TryGet(out var item))
                 {
                     onReady?.Invoke(item);
@@ -153,16 +159,26 @@ namespace CodexFramework.Utils.Pools
                         throw new Exception("can't grow fixed pool");
 #endif
                     Grow(_growPerFrame, Math.Max(_firstAvailable + 1, _items.Length));
-                    while (_firstAvailable < _items.Length && _items[_firstAvailable] == null)
+                    while (this && _firstAvailable < _items.Length && _items[_firstAvailable] == null)
                         yield return null;
+                    if (!this)
+                    {
+                        onReady?.Invoke(null);
+                        yield break;
+                    }
                     continue;
                 }
 
                 if (_maxCount < 1)
                 {
                     Grow(_growPerFrame);
-                    while (_isGrowing)
+                    while (this && _isGrowing)
                         yield return null;
+                    if (!this)
+                    {
+                        onReady?.Invoke(null);
+                        yield break;
+                    }
                     continue;
                 }
 
@@ -211,7 +227,7 @@ namespace CodexFramework.Utils.Pools
 #endif
 
             var addThisFrame = growPerFrame;
-            for (int i = _firstAvailable; i < _items.Length; i++)
+            for (int i = _firstAvailable; this && i < _items.Length; i++)
             {
                 //looks like it could cause problems if AddNew will be called outside of the routine
 //#if DEBUG
@@ -227,7 +243,8 @@ namespace CodexFramework.Utils.Pools
                 }
             }
 
-            _isGrowing = false;
+            if (this)
+                _isGrowing = false;
         }
     }
 }

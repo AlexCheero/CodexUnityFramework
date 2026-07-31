@@ -27,6 +27,9 @@ namespace CodexFramework.Utils.Pools
 #endif
             while (true)
             {
+                if (!this)
+                    return null;
+
                 if (TryGet(out var item))
                     return item;
 
@@ -41,8 +44,12 @@ namespace CodexFramework.Utils.Pools
                         throw new Exception("can't grow fixed pool");
 #endif
                     await GrowAsync(_growPerFrame, Math.Max(_firstAvailable + 1, _items.Length));
-                    while (_firstAvailable < _items.Length && _items[_firstAvailable] == null)
+                    if (!this)
+                        return null;
+                    while (this && _firstAvailable < _items.Length && _items[_firstAvailable] == null)
                         await UniTask.Yield(PlayerLoopTiming.Update);
+                    if (!this)
+                        return null;
                     continue;
                 }
 
@@ -50,6 +57,8 @@ namespace CodexFramework.Utils.Pools
                 if (_maxCount < 1)
                 {
                     await GrowAsync(_growPerFrame, _items.Length + 1);
+                    if (!this)
+                        return null;
                     continue;
                 }
 
@@ -82,7 +91,7 @@ namespace CodexFramework.Utils.Pools
             if (awaiter.IsCompleted)
             {
                 item = awaiter.GetResult();
-                if (item != null)
+                if (item)
                     item.transform.position = position;
                 return UniTask.FromResult(item);
             }
@@ -103,7 +112,7 @@ namespace CodexFramework.Utils.Pools
             if (awaiter.IsCompleted)
             {
                 item = awaiter.GetResult();
-                if (item != null)
+                if (item)
                     item.transform.SetPositionAndRotation(position, rotation);
                 return UniTask.FromResult(item);
             }
@@ -191,7 +200,7 @@ namespace CodexFramework.Utils.Pools
             TState state,
             Action<PoolItem, TState> onReady)
         {
-            if (item != null)
+            if (item)
             {
                 if (hasRotation)
                     item.transform.SetPositionAndRotation(position, rotation);
@@ -205,7 +214,7 @@ namespace CodexFramework.Utils.Pools
         private static async UniTask<PoolItem> ApplyPositionAsync(UniTask<PoolItem> task, Vector3 position)
         {
             var item = await task;
-            if (item != null)
+            if (item)
                 item.transform.position = position;
             return item;
         }
@@ -216,7 +225,7 @@ namespace CodexFramework.Utils.Pools
             Quaternion rotation)
         {
             var item = await task;
-            if (item != null)
+            if (item)
                 item.transform.SetPositionAndRotation(position, rotation);
             return item;
         }
@@ -226,6 +235,9 @@ namespace CodexFramework.Utils.Pools
 
         private async UniTask GrowAsync(int growPerFrame, int minDesiredSize)
         {
+            if (!this)
+                return;
+
             var currentSize = _items?.Length ?? 0;
             if (minDesiredSize < currentSize)
                 minDesiredSize = currentSize;
@@ -235,7 +247,7 @@ namespace CodexFramework.Utils.Pools
 
             if (_isGrowing)
             {
-                while (_isGrowing)
+                while (this && _isGrowing)
                     await UniTask.Yield(PlayerLoopTiming.Update);
                 return;
             }
@@ -253,7 +265,7 @@ namespace CodexFramework.Utils.Pools
             try
             {
                 var addThisFrame = growPerFrame;
-                for (int i = _firstAvailable; i < _items.Length; i++)
+                for (int i = _firstAvailable; this && i < _items.Length; i++)
                 {
                     //looks like it could cause problems if AddNew will be called outside of the routine
 //#if DEBUG
@@ -271,7 +283,8 @@ namespace CodexFramework.Utils.Pools
             }
             finally
             {
-                _isGrowing = false;
+                if (this)
+                    _isGrowing = false;
             }
         }
 
