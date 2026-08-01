@@ -12,7 +12,10 @@ namespace CodexFramework.Utils.Pools
         
         private void OnValidate()
         {
-            if (Application.isPlaying || _initialized)
+            if (Application.isPlaying)
+                return;
+
+            if (_initialized && Check())
                 return;
             
             RecacheData();
@@ -38,47 +41,31 @@ namespace CodexFramework.Utils.Pools
         
         private void Cache()
         {
-            SoftJointLimitCache SoftJointLimitToCache(SoftJointLimit limit) =>
-                new()
-                {
-                    Limit = limit.limit,
-                    Bounciness = limit.bounciness,
-                    ContactDistance = limit.contactDistance
-                };
-
-            SoftJointLimitSpringCache SoftJointLimitSpringToCache(SoftJointLimitSpring spring) =>
-                new()
-                {
-                    Spring = spring.spring,
-                    Damper = spring.damper
-                };
-
-            _jointsCache = new();
-            foreach (var joint in GetComponentsInChildren<CharacterJoint>(true))
+            var joints = GetComponentsInChildren<CharacterJoint>(true);
+            _jointsCache = new JointCache[joints.Length];
+            for (var i = 0; i < joints.Length; i++)
             {
-                _jointsCache.Add(new JointCache
+                _jointsCache[i] = new JointCache
                 {
-                    Joint = joint,
-                    LowTwistLimit = SoftJointLimitToCache(joint.lowTwistLimit),
-                    HighTwistLimit = SoftJointLimitToCache(joint.highTwistLimit),
-                    Swing1Limit = SoftJointLimitToCache(joint.swing1Limit),
-                    Swing2Limit = SoftJointLimitToCache(joint.swing2Limit),
-                    SwingLimitSpring = SoftJointLimitSpringToCache(joint.swingLimitSpring),
-                    Anchor = joint.anchor,
-                    ConnectedAnchor = joint.connectedAnchor
-                });
+                    Joint = joints[i],
+                    ConnectedBody = joints[i].connectedBody
+                };
             }
             
             _rigidbodies = GetComponentsInChildren<Rigidbody>(true);
-            _children = new();
-            foreach (var childTransform in GetComponentsInChildren<Transform>(true))
+
+            // Root pose is set by the pool; only cache child bones/parts.
+            var transforms = GetComponentsInChildren<Transform>(true);
+            _children = new ChildTransform[transforms.Length - 1];
+            for (var i = 1; i < transforms.Length; i++)
             {
-                _children.Add(new ChildTransform
+                var childTransform = transforms[i];
+                _children[i - 1] = new ChildTransform
                 {
                     Transform = childTransform,
                     LocalPosition = childTransform.localPosition,
                     LocalRotation = childTransform.localRotation,
-                });
+                };
             }
         }
         
@@ -86,29 +73,11 @@ namespace CodexFramework.Utils.Pools
 
         private bool CheckJoints()
         {
-            bool CompareTwistLimit(SoftJointLimit joint, SoftJointLimitCache cache)
-            {
-                if (!Mathf.Approximately(cache.Limit, joint.limit))
-                    return false;
-                if (!Mathf.Approximately(cache.Bounciness, joint.bounciness))
-                    return false;
-                if (!Mathf.Approximately(cache.ContactDistance, joint.contactDistance))
-                    return false;
-                return true;
-            }
+            if (_jointsCache == null)
+                return false;
 
-            bool CompareSwingLimitSpring(SoftJointLimitSpring joint, SoftJointLimitSpringCache cache)
-            {
-                if (!Mathf.Approximately(cache.Spring, joint.spring))
-                    return false;
-                if (!Mathf.Approximately(cache.Damper, joint.damper))
-                    return false;
-                return true;
-            }
-            
-            _jointsCache ??= new();
             var joints = GetComponentsInChildren<CharacterJoint>(true);
-            if (joints.Length != _jointsCache.Count)
+            if (joints.Length != _jointsCache.Length)
                 return false;
             for (var i = 0; i < joints.Length; i++)
             {
@@ -116,19 +85,8 @@ namespace CodexFramework.Utils.Pools
                 var cachedJoint = _jointsCache[i];
                 if (actualJoint != cachedJoint.Joint)
                     return false;
-                if (!CompareTwistLimit(actualJoint.lowTwistLimit, cachedJoint.LowTwistLimit))
-                    return false;
-                if (!CompareTwistLimit(actualJoint.highTwistLimit, cachedJoint.HighTwistLimit))
-                    return false;
-                if (!CompareTwistLimit(actualJoint.swing1Limit, cachedJoint.Swing1Limit))
-                    return false;
-                if (!CompareTwistLimit(actualJoint.swing2Limit, cachedJoint.Swing2Limit))
-                    return false;
-                if (!CompareSwingLimitSpring(actualJoint.swingLimitSpring, cachedJoint.SwingLimitSpring))
-                    return false;
-                if (cachedJoint.Anchor != actualJoint.anchor)
-                    return false;
-                if (cachedJoint.ConnectedAnchor != actualJoint.connectedAnchor)
+                // connectedBody is toggled at runtime for high-detail parts
+                if (!Application.isPlaying && cachedJoint.ConnectedBody != actualJoint.connectedBody)
                     return false;
             }
 
@@ -156,12 +114,13 @@ namespace CodexFramework.Utils.Pools
             if (_children == null)
                 return false;
             var actualChildren = GetComponentsInChildren<Transform>(true);
-            if (_children.Count != actualChildren.Length)
+            if (_children.Length != actualChildren.Length - 1)
                 return false;
-            for (var i = 0; i < actualChildren.Length; i++)
+
+            for (var i = 0; i < _children.Length; i++)
             {
                 var cache = _children[i];
-                var child = actualChildren[i];
+                var child = actualChildren[i + 1];
                 if (cache.Transform != child)
                     return false;
                 if (cache.LocalPosition != child.localPosition)

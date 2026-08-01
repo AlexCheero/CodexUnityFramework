@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
@@ -15,85 +14,35 @@ namespace CodexFramework.Utils.Pools
 
             public void Reapply() => Transform.SetLocalPositionAndRotation(LocalPosition, LocalRotation);
         }
-        
-        [Serializable]
-        private struct SoftJointLimitCache
-        {
-            public float Limit;
-            public float Bounciness;
-            public float ContactDistance;
-        }
-    
-        [Serializable]
-        private struct SoftJointLimitSpringCache
-        {
-            public float Spring;
-            public float Damper;
-        }
-    
+
         [Serializable]
         private struct JointCache
         {
             public CharacterJoint Joint;
-            public SoftJointLimitCache LowTwistLimit;
-            public SoftJointLimitCache HighTwistLimit;
-            public SoftJointLimitCache Swing1Limit;
-            public SoftJointLimitCache Swing2Limit;
-            public SoftJointLimitSpringCache SwingLimitSpring;
-            public Vector3 Anchor;
-            public Vector3 ConnectedAnchor;
+            public Rigidbody ConnectedBody;
         }
     
         [SerializeField, HideInInspector]
-        private List<JointCache> _jointsCache;
+        private JointCache[] _jointsCache;
         [SerializeField, HideInInspector]
         private Rigidbody[] _rigidbodies;
         [SerializeField, HideInInspector]
-        private List<ChildTransform> _children;
-        
+        private ChildTransform[] _children;
+
         public void OnGet()
         {
-            for (var i = 0; i < _children.Count; i++)
+            for (var i = 0; i < _children.Length; i++)
                 _children[i].Reapply();
-            
-            SoftJointLimit ResetJointLimit(SoftJointLimit limit, SoftJointLimitCache cache)
+
+            for (var i = 0; i < _jointsCache.Length; i++)
             {
-                limit.limit = cache.Limit;
-                limit.bounciness = cache.Bounciness;
-                limit.contactDistance = cache.ContactDistance;
-                return limit;
-            }
-            
-            SoftJointLimitSpring ResetJointLimitSpring(SoftJointLimitSpring spring, SoftJointLimitSpringCache cache)
-            {
-                spring.spring = cache.Spring;
-                spring.damper = cache.Damper;
-                return spring;
-            }
-            
-            for (var i = 0; i < _jointsCache.Count; i++)
-            {
-                var jointCache = _jointsCache[i];
-                var joint = jointCache.Joint;
-                joint.lowTwistLimit = ResetJointLimit(joint.lowTwistLimit, jointCache.LowTwistLimit);
-                joint.highTwistLimit = ResetJointLimit(joint.highTwistLimit, jointCache.HighTwistLimit);
-                joint.swing1Limit = ResetJointLimit(joint.swing1Limit, jointCache.Swing1Limit);
-                joint.swing2Limit = ResetJointLimit(joint.swing2Limit, jointCache.Swing2Limit);
-                joint.swingLimitSpring = ResetJointLimitSpring(joint.swingLimitSpring, jointCache.SwingLimitSpring);
-                joint.anchor = jointCache.Anchor;
-                joint.connectedAnchor = jointCache.ConnectedAnchor;
-                
-                var temp = joint.connectedBody;
+                var joint = _jointsCache[i].Joint;
                 joint.connectedBody = null;
-                joint.connectedBody = temp;
+                joint.connectedBody = _jointsCache[i].ConnectedBody;
             }
 
             for (var i = 0; i < _rigidbodies.Length; i++)
-            {
-                var rb = _rigidbodies[i];
-                rb.isKinematic = false;
-                rb.WakeUp();
-            }
+                _rigidbodies[i].isKinematic = false;
         }
 
         public void OnReturn()
@@ -103,9 +52,7 @@ namespace CodexFramework.Utils.Pools
                 var rb = _rigidbodies[i];
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
-                rb.ResetInertiaTensor();
                 rb.isKinematic = true;
-                rb.Sleep();
             }
         }
     }
