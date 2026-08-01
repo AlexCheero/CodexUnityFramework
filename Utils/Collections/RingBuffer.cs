@@ -58,21 +58,18 @@ namespace CodexFramework.Utils.Collections
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Push(T item)
         {
-            var idx = -1;
             if (_count < Capacity)
             {
-                _buffer[_count] = item;
-                idx = _count;
+                var idx = (_start + _count) % _buffer.Length;
+                _buffer[idx] = item;
                 _count++;
-            }
-            else
-            {
-                _buffer[_start] = item;
-                idx = _start;
-                _start = (_start + 1) % Capacity;
+                return idx;
             }
 
-            return idx;
+            var overwriteIdx = _start;
+            _buffer[_start] = item;
+            _start = (_start + 1) % Capacity;
+            return overwriteIdx;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -108,6 +105,8 @@ namespace CodexFramework.Utils.Collections
             }
             
             _count--;
+            if (_count == 0)
+                _start = 0;
         }
         
         public struct Enumerator
