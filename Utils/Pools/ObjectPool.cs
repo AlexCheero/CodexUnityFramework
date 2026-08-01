@@ -316,6 +316,7 @@ namespace CodexFramework.Utils.Pools
             item.transform.position = Vector3.zero;
             item.transform.rotation = Quaternion.identity;
 
+            // Free list is [_firstAvailable, Length); Get() takes from the front.
             _firstAvailable--;
             if (item.Idx < _firstAvailable)
             {
@@ -324,6 +325,25 @@ namespace CodexFramework.Utils.Pools
                 _items[item.Idx] = temp;
                 temp.AddToPool(this, item.Idx);
                 item.AddToPool(this, _firstAvailable);
+            }
+
+            // Optional: move to end of free list so this item is reused last.
+            if (item.ReuseReturnedLast)
+            {
+                // Array may have trailing null slots awaiting async grow — use last allocated free item.
+                var end = _items.Length - 1;
+                while (end > _firstAvailable && _items[end] == null)
+                    end--;
+
+                if (_firstAvailable < end)
+                {
+                    var atEnd = _items[end];
+                    var frontIdx = item.Idx;
+                    _items[end] = item;
+                    _items[frontIdx] = atEnd;
+                    atEnd.AddToPool(this, frontIdx);
+                    item.AddToPool(this, end);
+                }
             }
 
             item.OnReturn();
