@@ -30,14 +30,10 @@ namespace CodexFramework.Utils.Pools
         private int _maxCount = -1;
         [SerializeField]
         private int _growPerFrame = 1;
-        [SerializeField]
-        [Tooltip("When returning, place this item at the end of the free list so it is reused last.")]
-        private bool _reuseReturnedLast;
-
+        
         public int InitialCount => _initialCount;
         public int MaxCount => _maxCount;
         public int GrowPerFrame => _growPerFrame;
-        public bool ReuseReturnedLast => _reuseReturnedLast;
         
         [SerializeField]
         private ObjectPool _pool;

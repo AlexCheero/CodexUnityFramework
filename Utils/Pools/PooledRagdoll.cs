@@ -46,10 +46,10 @@ namespace CodexFramework.Utils.Pools
             for (var i = 0; i < _rigidbodies.Length; i++)
             {
                 var rb = _rigidbodies[i];
-                // Deferred return reset may not have run yet.
+                // Non-kinematic before velocity — avoids "kinematic body" warnings.
+                rb.isKinematic = false;
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
-                rb.isKinematic = false;
             }
         }
 
@@ -60,8 +60,13 @@ namespace CodexFramework.Utils.Pools
             for (var i = 0; i < _rigidbodies.Length; i++)
             {
                 var rb = _rigidbodies[i];
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
+                // High-detail parts may already be kinematic — don't write velocities on those.
+                if (!rb.isKinematic)
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
+
                 rb.isKinematic = true;
             }
         }

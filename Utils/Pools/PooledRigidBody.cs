@@ -11,8 +11,8 @@ namespace CodexFramework.Utils.Pools
         
         public void OnGet()
         {
-            _rigidbody.linearVelocity = _rigidbody.angularVelocity = Vector3.zero;
             _rigidbody.isKinematic = false;
+            _rigidbody.linearVelocity = _rigidbody.angularVelocity = Vector3.zero;
         }
 
         public void OnReturn() => _rigidbody.isKinematic = true;
