@@ -10,186 +10,82 @@ namespace CodexFramework.Utils.Pools
         private static readonly Action<PoolItem, Action<PoolItem>> InvokeActionCallback =
             static (item, callback) => callback?.Invoke(item);
 
-        partial void BeginInitialGrow() => GrowAsync(_growPerFrame, _items.Length).Forget();
+        partial void BeginInitialGrow() => RequestGrow(_items.Length);
+
+        partial void StartGrowIfNeeded()
+        {
+            if (!_isGrowing)
+                GrowAsync(_growPerFrame).Forget();
+        }
 
         public UniTask<PoolItem> GetAsync(bool forceGrow = true)
         {
-            if (TryGet(out var item))
+            if (_asyncWaiters.Count == 0 && TryGet(out var item))
                 return UniTask.FromResult(item);
-            return GetAsyncCore(forceGrow);
-        }
 
-        private async UniTask<PoolItem> GetAsyncCore(bool forceGrow)
-        {
-#if DEBUG
-            if (_firstAvailable > _items.Length)
-                throw new Exception("_firstAvailable can't be bigger than _objects.Length");
-#endif
-            while (true)
-            {
-                if (!this)
-                    return null;
-
-                if (TryGet(out var item))
-                    return item;
-
-                if (_firstAvailable < _items.Length)
-                {
-                    // Slot exists but not filled yet (async grow in progress).
-                    if (!forceGrow)
-                        return null;
-
-#if UNITY_EDITOR
-                    if (_maxCount > 0)
-                        throw new Exception("can't grow fixed pool");
-#endif
-                    await GrowAsync(_growPerFrame, Math.Max(_firstAvailable + 1, _items.Length));
-                    if (!this)
-                        return null;
-                    while (this && _firstAvailable < _items.Length && _items[_firstAvailable] == null)
-                        await UniTask.Yield(PlayerLoopTiming.Update);
-                    if (!this)
-                        return null;
-                    continue;
-                }
-
-                // Pool exhausted: grow or reclaim.
-                if (_maxCount < 1)
-                {
-                    await GrowAsync(_growPerFrame, _items.Length + 1);
-                    if (!this)
-                        return null;
-                    continue;
-                }
-
-                var reclaimed = false;
-                for (var i = _items.Length - 1; i > -1; i--)
-                {
-                    var poolItem = _items[i];
-                    if (poolItem == null || poolItem.IsInPool)
-                        continue;
-                    ReturnItem(poolItem);
-                    reclaimed = true;
-                    break;
-                }
-
-                if (!reclaimed)
-                    return null;
-            }
+            var tcs = new UniTaskCompletionSource<PoolItem>();
+            EnqueueAsyncWaiter(result => tcs.TrySetResult(result), forceGrow);
+            return tcs.Task;
         }
 
         public UniTask<PoolItem> GetAsync(Vector3 position, bool forceGrow = true)
         {
-            if (TryGet(out var item))
+            if (_asyncWaiters.Count == 0 && TryGet(out var item))
             {
                 item.transform.position = position;
                 return UniTask.FromResult(item);
             }
 
-            var task = GetAsyncCore(forceGrow);
-            var awaiter = task.GetAwaiter();
-            if (awaiter.IsCompleted)
+            var tcs = new UniTaskCompletionSource<PoolItem>();
+            EnqueueAsyncWaiter(result =>
             {
-                item = awaiter.GetResult();
-                if (item)
-                    item.transform.position = position;
-                return UniTask.FromResult(item);
-            }
-
-            return ApplyPositionAsync(task, position);
+                if (result)
+                    result.transform.position = position;
+                tcs.TrySetResult(result);
+            }, forceGrow);
+            return tcs.Task;
         }
 
         public UniTask<PoolItem> GetAsync(Vector3 position, Quaternion rotation, bool forceGrow = true)
         {
-            if (TryGet(out var item))
+            if (_asyncWaiters.Count == 0 && TryGet(out var item))
             {
                 item.transform.SetPositionAndRotation(position, rotation);
                 return UniTask.FromResult(item);
             }
 
-            var task = GetAsyncCore(forceGrow);
-            var awaiter = task.GetAwaiter();
-            if (awaiter.IsCompleted)
+            var tcs = new UniTaskCompletionSource<PoolItem>();
+            EnqueueAsyncWaiter(result =>
             {
-                item = awaiter.GetResult();
-                if (item)
-                    item.transform.SetPositionAndRotation(position, rotation);
-                return UniTask.FromResult(item);
-            }
-
-            return ApplyPositionRotationAsync(task, position, rotation);
+                if (result)
+                    result.transform.SetPositionAndRotation(position, rotation);
+                tcs.TrySetResult(result);
+            }, forceGrow);
+            return tcs.Task;
         }
 
         public void GetAsync(Action<PoolItem> onReady, bool forceGrow = true) =>
             GetAsync(onReady, InvokeActionCallback, forceGrow);
 
-        public void GetAsync<TState>(TState state, Action<PoolItem, TState> onReady, bool forceGrow = true)
-        {
-            if (TryGet(out var item))
-            {
-                FinishGet(item, false, default, false, default, state, onReady);
-                return;
-            }
-
-            CompleteOrContinue(GetAsyncCore(forceGrow), false, default, false, default, state, onReady);
-        }
+        public void GetAsync<TState>(TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
+            EnqueueAsyncWaiter(item => FinishGet(item, false, default, false, default, state, onReady), forceGrow);
 
         public void GetAsync(Vector3 position, Action<PoolItem> onReady, bool forceGrow = true) =>
             GetAsync(position, onReady, InvokeActionCallback, forceGrow);
 
-        public void GetAsync<TState>(Vector3 position, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true)
-        {
-            if (TryGet(out var item))
-            {
-                FinishGet(item, true, position, false, default, state, onReady);
-                return;
-            }
-
-            CompleteOrContinue(GetAsyncCore(forceGrow), true, position, false, default, state, onReady);
-        }
+        public void GetAsync<TState>(Vector3 position, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
+            EnqueueAsyncWaiter(item => FinishGet(item, true, position, false, default, state, onReady), forceGrow);
 
         public void GetAsync(Vector3 position, Quaternion rotation, Action<PoolItem> onReady, bool forceGrow = true) =>
             GetAsync(position, rotation, onReady, InvokeActionCallback, forceGrow);
 
-        public void GetAsync<TState>(Vector3 position, Quaternion rotation, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true)
-        {
-            if (TryGet(out var item))
-            {
-                FinishGet(item, true, position, true, rotation, state, onReady);
-                return;
-            }
-
-            CompleteOrContinue(GetAsyncCore(forceGrow), true, position, true, rotation, state, onReady);
-        }
-
-        private static void CompleteOrContinue<TState>(
-            UniTask<PoolItem> task,
-            bool hasPosition,
+        public void GetAsync<TState>(
             Vector3 position,
-            bool hasRotation,
             Quaternion rotation,
             TState state,
-            Action<PoolItem, TState> onReady)
-        {
-            var awaiter = task.GetAwaiter();
-            if (awaiter.IsCompleted)
-            {
-                FinishGet(awaiter.GetResult(), hasPosition, position, hasRotation, rotation, state, onReady);
-                return;
-            }
-
-            var cont = new GetContinueState<TState>
-            {
-                Awaiter = awaiter,
-                HasPosition = hasPosition,
-                Position = position,
-                HasRotation = hasRotation,
-                Rotation = rotation,
-                State = state,
-                OnReady = onReady,
-            };
-            awaiter.SourceOnCompleted(GetContinueState<TState>.Invoke, cont);
-        }
+            Action<PoolItem, TState> onReady,
+            bool forceGrow = true) =>
+            EnqueueAsyncWaiter(item => FinishGet(item, true, position, true, rotation, state, onReady), forceGrow);
 
         private static void FinishGet<TState>(
             PoolItem item,
@@ -211,46 +107,10 @@ namespace CodexFramework.Utils.Pools
             onReady?.Invoke(item, state);
         }
 
-        private static async UniTask<PoolItem> ApplyPositionAsync(UniTask<PoolItem> task, Vector3 position)
+        private async UniTask GrowAsync(int growPerFrame)
         {
-            var item = await task;
-            if (item)
-                item.transform.position = position;
-            return item;
-        }
-
-        private static async UniTask<PoolItem> ApplyPositionRotationAsync(
-            UniTask<PoolItem> task,
-            Vector3 position,
-            Quaternion rotation)
-        {
-            var item = await task;
-            if (item)
-                item.transform.SetPositionAndRotation(position, rotation);
-            return item;
-        }
-
-        private void Grow(int growPerFrame, int minDesiredSize) =>
-            GrowAsync(growPerFrame, minDesiredSize).Forget();
-
-        private async UniTask GrowAsync(int growPerFrame, int minDesiredSize)
-        {
-            if (!this)
+            if (!this || _isGrowing)
                 return;
-
-            var currentSize = _items?.Length ?? 0;
-            if (minDesiredSize < currentSize)
-                minDesiredSize = currentSize;
-
-            const int maxResizeDelta = 64;
-            CodexECS.Utility.Utils.ResizeArray(minDesiredSize - 1, ref _items, maxResizeDelta);
-
-            if (_isGrowing)
-            {
-                while (this && _isGrowing)
-                    await UniTask.Yield(PlayerLoopTiming.Update);
-                return;
-            }
 
             _isGrowing = true;
 
@@ -265,14 +125,37 @@ namespace CodexFramework.Utils.Pools
             try
             {
                 var addThisFrame = growPerFrame;
-                for (int i = _firstAvailable; this && i < _items.Length; i++)
+                while (this)
                 {
-                    //looks like it could cause problems if AddNew will be called outside of the routine
-//#if DEBUG
-//                if (_objects[i] != null)
-//                    throw new Exception("non null pool items after grow");
-//#endif
-                    AddNew(i);
+                    if (_growTarget > (_items?.Length ?? 0))
+                    {
+                        const int maxResizeDelta = 64;
+                        CodexECS.Utility.Utils.ResizeArray(_growTarget - 1, ref _items, maxResizeDelta);
+                    }
+
+                    var fillIdx = -1;
+                    for (int i = _firstAvailable; i < _items.Length; i++)
+                    {
+                        if (_items[i] == null)
+                        {
+                            fillIdx = i;
+                            break;
+                        }
+                    }
+
+                    if (fillIdx < 0)
+                    {
+                        if ((_items?.Length ?? 0) >= _growTarget)
+                            break;
+
+                        const int maxResizeDelta = 64;
+                        CodexECS.Utility.Utils.ResizeArray(Math.Max(_growTarget, 1) - 1, ref _items, maxResizeDelta);
+                        continue;
+                    }
+
+                    AddNew(fillIdx);
+                    TryFulfillAsyncWaiters();
+
                     addThisFrame--;
                     if (addThisFrame == 0)
                     {
@@ -284,39 +167,14 @@ namespace CodexFramework.Utils.Pools
             finally
             {
                 if (this)
+                {
                     _isGrowing = false;
+                    if (_asyncWaiters.Count > 0 || HasUnfilledSlots())
+                        RequestGrow(DesiredSizeForGets(0));
+                    else
+                        _growTarget = _items?.Length ?? 0;
+                }
             }
-        }
-
-        private sealed class GetContinueState<TState>
-        {
-            public UniTask<PoolItem>.Awaiter Awaiter;
-            public bool HasPosition;
-            public Vector3 Position;
-            public bool HasRotation;
-            public Quaternion Rotation;
-            public TState State;
-            public Action<PoolItem, TState> OnReady;
-
-            public static readonly Action<object> Invoke = static obj =>
-            {
-                var state = (GetContinueState<TState>)obj;
-                try
-                {
-                    FinishGet(
-                        state.Awaiter.GetResult(),
-                        state.HasPosition,
-                        state.Position,
-                        state.HasRotation,
-                        state.Rotation,
-                        state.State,
-                        state.OnReady);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-            };
         }
     }
 }
