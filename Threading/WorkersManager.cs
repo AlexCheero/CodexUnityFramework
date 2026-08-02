@@ -115,11 +115,11 @@ namespace CodexFramework.Threading
             _minCountPerThread = minCountPerThread;
             _chunkSize = Mathf.Max(_minCountPerThread, Mathf.CeilToInt((float)_count / (_threads.Length + 1)));
             _job = job;
-            
-            _job.Execute(0, Mathf.Min(_count, _chunkSize));
 
-            _barrier.SignalAndWait(); // стартуем всех
-            _barrier.SignalAndWait(); // ждём завершения
+            // Release workers before main runs chunk 0 so all slots work in parallel.
+            _barrier.SignalAndWait();
+            _job.Execute(0, Mathf.Min(_count, _chunkSize));
+            _barrier.SignalAndWait();
         }
 
         public void Dispose()
