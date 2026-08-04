@@ -515,19 +515,40 @@ namespace CodexFramework.Utils
 
         public static void GenerateFolderPaths_AssetDatabase(string fullPath)
         {
-            if (!fullPath.StartsWith("Assets/"))
+            if (string.IsNullOrEmpty(fullPath))
+                return;
+
+            fullPath = fullPath.Replace('\\', '/').TrimEnd('/');
+            if (!fullPath.StartsWith("Assets/") && fullPath != "Assets")
             {
                 Debug.LogError("Path must start with 'Assets/'");
                 return;
             }
-            
+
             var folders = fullPath.Split('/');
             var currentPath = folders[0];
             for (int i = 1; i < folders.Length; i++)
             {
+                if (string.IsNullOrEmpty(folders[i]))
+                    continue;
+
                 var nextPath = $"{currentPath}/{folders[i]}";
-                if (!AssetDatabase.IsValidFolder(nextPath))
-                    AssetDatabase.CreateFolder(currentPath, folders[i]);
+                if (AssetDatabase.IsValidFolder(nextPath))
+                {
+                    currentPath = nextPath;
+                    continue;
+                }
+
+                // SaveFilePanelInProject can create folders on disk before AssetDatabase
+                // imports them. CreateFolder would then spawn "Name 1" duplicates.
+                if (System.IO.Directory.Exists(nextPath))
+                {
+                    AssetDatabase.Refresh();
+                    currentPath = nextPath;
+                    continue;
+                }
+
+                AssetDatabase.CreateFolder(currentPath, folders[i]);
                 currentPath = nextPath;
             }
         }
