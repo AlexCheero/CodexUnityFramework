@@ -32,7 +32,9 @@ namespace CodexFramework.Utils.Pools
         {
             if (_asyncWaiters.Count == 0 && TryGet(out var item))
             {
+                item.gameObject.SetActive(false);
                 item.transform.position = position;
+                item.gameObject.SetActive(true);
                 return UniTask.FromResult(item);
             }
 
@@ -40,7 +42,11 @@ namespace CodexFramework.Utils.Pools
             EnqueueAsyncWaiter(result =>
             {
                 if (result)
+                {
+                    result.gameObject.SetActive(false);
                     result.transform.position = position;
+                    result.gameObject.SetActive(true);
+                }
                 tcs.TrySetResult(result);
             }, forceGrow);
             return tcs.Task;
@@ -50,7 +56,9 @@ namespace CodexFramework.Utils.Pools
         {
             if (_asyncWaiters.Count == 0 && TryGet(out var item))
             {
+                item.gameObject.SetActive(false);
                 item.transform.SetPositionAndRotation(position, rotation);
+                item.gameObject.SetActive(true);
                 return UniTask.FromResult(item);
             }
 
@@ -58,7 +66,11 @@ namespace CodexFramework.Utils.Pools
             EnqueueAsyncWaiter(result =>
             {
                 if (result)
+                {
+                    result.gameObject.SetActive(false);
                     result.transform.SetPositionAndRotation(position, rotation);
+                    result.gameObject.SetActive(true);
+                }
                 tcs.TrySetResult(result);
             }, forceGrow);
             return tcs.Task;
@@ -96,12 +108,15 @@ namespace CodexFramework.Utils.Pools
             TState state,
             Action<PoolItem, TState> onReady)
         {
-            if (item)
+            if (item && (hasPosition || hasRotation))
             {
+                // Place while inactive so TrailRenderers don't record a streak from the pool origin.
+                item.gameObject.SetActive(false);
                 if (hasRotation)
                     item.transform.SetPositionAndRotation(position, rotation);
-                else if (hasPosition)
+                else
                     item.transform.position = position;
+                item.gameObject.SetActive(true);
             }
 
             onReady?.Invoke(item, state);

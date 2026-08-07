@@ -25,7 +25,11 @@ namespace CodexFramework.Utils.Pools
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
+                {
+                    item.gameObject.SetActive(false);
                     item.transform.position = position;
+                    item.gameObject.SetActive(true);
+                }
                 onReady?.Invoke(item);
             }, forceGrow);
 
@@ -33,7 +37,11 @@ namespace CodexFramework.Utils.Pools
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
+                {
+                    item.gameObject.SetActive(false);
                     item.transform.position = position;
+                    item.gameObject.SetActive(true);
+                }
                 onReady?.Invoke(item, state);
             }, forceGrow);
 
@@ -41,7 +49,11 @@ namespace CodexFramework.Utils.Pools
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
+                {
+                    item.gameObject.SetActive(false);
                     item.transform.SetPositionAndRotation(position, rotation);
+                    item.gameObject.SetActive(true);
+                }
                 onReady?.Invoke(item);
             }, forceGrow);
 
@@ -54,7 +66,11 @@ namespace CodexFramework.Utils.Pools
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
+                {
+                    item.gameObject.SetActive(false);
                     item.transform.SetPositionAndRotation(position, rotation);
+                    item.gameObject.SetActive(true);
+                }
                 onReady?.Invoke(item, state);
             }, forceGrow);
 

@@ -132,18 +132,35 @@ namespace CodexFramework.Utils.Pools
 
         public PoolItem Get(Vector3 position, bool forceGrow = true)
         {
-            var item = Get(forceGrow);
+            var item = TakeInactive(forceGrow);
             if (item)
-                item.transform.position = position;
+                ActivateAt(item, position, false, default);
             return item;
         }
 
         public PoolItem Get(Vector3 position, Quaternion rotation, bool forceGrow = true)
         {
+            var item = TakeInactive(forceGrow);
+            if (item)
+                ActivateAt(item, position, true, rotation);
+            return item;
+        }
+
+        private PoolItem TakeInactive(bool forceGrow)
+        {
             var item = Get(forceGrow);
             if (item)
-                item.transform.SetPositionAndRotation(position, rotation);
+                item.gameObject.SetActive(false);
             return item;
+        }
+
+        private static void ActivateAt(PoolItem item, Vector3 position, bool hasRotation, Quaternion rotation)
+        {
+            if (hasRotation)
+                item.transform.SetPositionAndRotation(position, rotation);
+            else
+                item.transform.position = position;
+            item.gameObject.SetActive(true);
         }
 
         private void InstantGrow()
