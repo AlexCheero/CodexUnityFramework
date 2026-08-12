@@ -1,4 +1,5 @@
 ﻿#if UNITY_EDITOR
+using System.Collections.Generic;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
@@ -51,16 +52,26 @@ namespace CodexFramework.Utils.Pools
                     ConnectedBody = joints[i].connectedBody
                 };
             }
-            
-            _rigidbodies = GetComponentsInChildren<Rigidbody>(true);
+
+            EnsureDismemberDummies();
+            _rigidbodies = CollectRigidbodies();
 
             // Root pose is set by the pool; only cache child bones/parts.
             var transforms = GetComponentsInChildren<Transform>(true);
-            _children = new ChildTransform[transforms.Length - 1];
+            var childCount = 0;
+            for (var i = 1; i < transforms.Length; i++)
+            {
+                if (!IsDismemberDummy(transforms[i]))
+                    childCount++;
+            }
+            _children = new ChildTransform[childCount];
+            var dst = 0;
             for (var i = 1; i < transforms.Length; i++)
             {
                 var childTransform = transforms[i];
-                _children[i - 1] = new ChildTransform
+                if (IsDismemberDummy(childTransform))
+                    continue;
+                _children[dst++] = new ChildTransform
                 {
                     Transform = childTransform,
                     LocalPosition = childTransform.localPosition,
@@ -68,8 +79,86 @@ namespace CodexFramework.Utils.Pools
                 };
             }
         }
+
+        private void EnsureDismemberDummies()
+        {
+            var count = _jointsCache.Length;
+            var kept = new HashSet<Rigidbody>();
+            _dismemberDummies = new Rigidbody[count];
+            for (var i = 0; i < count; i++)
+            {
+                var joint = _jointsCache[i].Joint;
+                if (joint == null)
+                    continue;
+                var dummy = FindOrCreateDummy(joint);
+                _dismemberDummies[i] = dummy;
+                kept.Add(dummy);
+            }
+
+            var all = GetComponentsInChildren<Transform>(true);
+            for (var i = 0; i < all.Length; i++)
+            {
+                if (!IsDismemberDummy(all[i]))
+                    continue;
+                if (!all[i].TryGetComponent<Rigidbody>(out var rb) || !kept.Contains(rb))
+                    Object.DestroyImmediate(all[i].gameObject);
+            }
+        }
+
+        private static Rigidbody FindOrCreateDummy(CharacterJoint joint)
+        {
+            var parent = joint.transform;
+            for (var i = 0; i < parent.childCount; i++)
+            {
+                var child = parent.GetChild(i);
+                if (!IsDismemberDummy(child) || !child.TryGetComponent<Rigidbody>(out var existing))
+                    continue;
+                ConfigureDummy(existing, joint);
+                return existing;
+            }
+
+            var go = new GameObject(DismemberDummyName);
+            go.transform.SetParent(parent, false);
+            var rb = go.AddComponent<Rigidbody>();
+            ConfigureDummy(rb, joint);
+            return rb;
+        }
+
+        private static void ConfigureDummy(Rigidbody rb, CharacterJoint joint)
+        {
+            rb.isKinematic = true;
+            rb.useGravity = false;
+            rb.detectCollisions = false;
+            rb.interpolation = RigidbodyInterpolation.None;
+            rb.gameObject.layer = joint.gameObject.layer;
+            rb.gameObject.SetActive(false);
+            rb.transform.SetParent(joint.transform, false);
+            rb.transform.localPosition = joint.anchor;
+            rb.transform.localRotation = Quaternion.identity;
+            rb.transform.localScale = Vector3.one;
+        }
+
+        private Rigidbody[] CollectRigidbodies()
+        {
+            var all = GetComponentsInChildren<Rigidbody>(true);
+            var count = 0;
+            for (var i = 0; i < all.Length; i++)
+            {
+                if (!IsDismemberDummy(all[i]))
+                    count++;
+            }
+            var result = new Rigidbody[count];
+            var dst = 0;
+            for (var i = 0; i < all.Length; i++)
+            {
+                if (IsDismemberDummy(all[i]))
+                    continue;
+                result[dst++] = all[i];
+            }
+            return result;
+        }
         
-        public bool Check() => CheckJoints() && CheckRigidbodies() && CheckChildren();
+        public bool Check() => CheckJoints() && CheckDummies() && CheckRigidbodies() && CheckChildren();
 
         private bool CheckJoints()
         {
@@ -93,11 +182,28 @@ namespace CodexFramework.Utils.Pools
             return true;
         }
 
+        private bool CheckDummies()
+        {
+            if (_jointsCache == null || _dismemberDummies == null ||
+                _dismemberDummies.Length != _jointsCache.Length)
+                return false;
+            for (var i = 0; i < _jointsCache.Length; i++)
+            {
+                var joint = _jointsCache[i].Joint;
+                var dummy = _dismemberDummies[i];
+                if (joint == null || dummy == null)
+                    return false;
+                if (dummy.transform.parent != joint.transform)
+                    return false;
+            }
+            return true;
+        }
+
         private bool CheckRigidbodies()
         {
             if (_rigidbodies == null)
                 return false;
-            var actualRigidbodies = GetComponentsInChildren<Rigidbody>(true);
+            var actualRigidbodies = CollectRigidbodies();
             if (_rigidbodies.Length != actualRigidbodies.Length)
                 return false;
             for (var i = 0; i < actualRigidbodies.Length; i++)
@@ -114,13 +220,22 @@ namespace CodexFramework.Utils.Pools
             if (_children == null)
                 return false;
             var actualChildren = GetComponentsInChildren<Transform>(true);
-            if (_children.Length != actualChildren.Length - 1)
+            var expected = 0;
+            for (var i = 1; i < actualChildren.Length; i++)
+            {
+                if (!IsDismemberDummy(actualChildren[i]))
+                    expected++;
+            }
+            if (_children.Length != expected)
                 return false;
 
-            for (var i = 0; i < _children.Length; i++)
+            var dst = 0;
+            for (var i = 1; i < actualChildren.Length; i++)
             {
-                var cache = _children[i];
-                var child = actualChildren[i + 1];
+                var child = actualChildren[i];
+                if (IsDismemberDummy(child))
+                    continue;
+                var cache = _children[dst++];
                 if (cache.Transform != child)
                     return false;
                 if (cache.LocalPosition != child.localPosition)
