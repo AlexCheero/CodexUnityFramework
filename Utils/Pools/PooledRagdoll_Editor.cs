@@ -114,6 +114,7 @@ namespace CodexFramework.Utils.Pools
                 if (!IsDismemberDummy(child) || !child.TryGetComponent<Rigidbody>(out var existing))
                     continue;
                 ConfigureDummy(existing, joint);
+                existing.Sleep();
                 return existing;
             }
 
@@ -121,6 +122,7 @@ namespace CodexFramework.Utils.Pools
             go.transform.SetParent(parent, false);
             var rb = go.AddComponent<Rigidbody>();
             ConfigureDummy(rb, joint);
+            rb.Sleep();
             return rb;
         }
 

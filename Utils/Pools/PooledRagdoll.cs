@@ -95,7 +95,7 @@ namespace CodexFramework.Utils.Pools
         /// Breaks a random number of joints in [DismemberMinJoints, DismemberMaxJointFraction * count]
         /// (or all if fewer than DismemberMinJoints).
         /// Distal joints stay connected so a severed arm can still dangle.
-        /// Broken joints stay active, retargeted to a kinematic dummy on the distal part
+        /// Broken joints stay active, retargeted to a dummy on the distal part
         /// (null connectedBody would pin the piece to the world).
         /// </summary>
         public int DisconnectRandomJoints(List<DismemberedJoint> results)
@@ -188,23 +188,22 @@ namespace CodexFramework.Utils.Pools
         {
             var dummy = _dismemberDummies[jointIndex];
             dummy.gameObject.SetActive(true);
-            dummy.transform.SetParent(joint.transform, false);
-            dummy.transform.localPosition = joint.anchor;
-            dummy.transform.localRotation = Quaternion.identity;
-            joint.autoConfigureConnectedAnchor = false;
+            dummy.isKinematic = false;
             joint.connectedBody = dummy;
-            joint.connectedAnchor = Vector3.zero;
         }
 
         private void DeactivateDummies()
         {
-            if (_dismemberDummies == null)
-                return;
             for (var i = 0; i < _dismemberDummies.Length; i++)
             {
                 var rb = _dismemberDummies[i];
-                if (rb != null)
-                    rb.gameObject.SetActive(false);
+                if (!rb.isKinematic)
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
+                rb.isKinematic = true;
+                rb.gameObject.SetActive(false);
             }
         }
 
