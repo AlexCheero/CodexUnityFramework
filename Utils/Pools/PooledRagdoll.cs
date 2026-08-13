@@ -10,7 +10,6 @@ namespace CodexFramework.Utils.Pools
         public struct DismemberedJoint
         {
             public Vector3 WorldPosition;
-            public Transform Transform;
             public Vector3 Outward;
         }
 
@@ -48,9 +47,9 @@ namespace CodexFramework.Utils.Pools
         private bool _pendingReturnReset;
         private static readonly List<int> DisconnectCandidates = new(32);
 
-        public static bool IsDismemberDummy(Component c) =>
-            c != null && c.name == DismemberDummyName;
+        public static bool IsDismemberDummy(Component c) => c.name == DismemberDummyName;
 
+#if UNITY_EDITOR
         public static int CountGameplayRigidbodies(GameObject root)
         {
             if (root == null)
@@ -64,6 +63,7 @@ namespace CodexFramework.Utils.Pools
             }
             return count;
         }
+#endif
 
         public void OnGet()
         {
@@ -87,7 +87,8 @@ namespace CodexFramework.Utils.Pools
 
         public void OnReturn()
         {
-            RestoreJoints();
+            DeactivateDummies();
+            RestoreJointConnections();
             EnqueueReturnReset(this);
         }
 
@@ -101,25 +102,15 @@ namespace CodexFramework.Utils.Pools
         public int DisconnectRandomJoints(List<DismemberedJoint> results)
         {
             results.Clear();
-            if (_jointsCache == null || _jointsCache.Length == 0)
-                return 0;
-
             DisconnectCandidates.Clear();
             for (var i = 0; i < _jointsCache.Length; i++)
             {
                 var joint = _jointsCache[i].Joint;
-                if (joint == null)
+                var connected = joint.connectedBody;
+                if (IsDismemberDummy(connected))
                     continue;
-                var connected = joint.connectedBody != null
-                    ? joint.connectedBody
-                    : _jointsCache[i].ConnectedBody;
-                if (connected == null || IsDismemberDummy(connected))
-                    continue;
-                if (_dismemberDummies == null ||
-                    i >= _dismemberDummies.Length ||
-                    _dismemberDummies[i] == null)
-                    continue;
-                DisconnectCandidates.Add(i);
+                if (i < _dismemberDummies.Length)
+                    DisconnectCandidates.Add(i);
             }
 
             var available = DisconnectCandidates.Count;
@@ -138,13 +129,9 @@ namespace CodexFramework.Utils.Pools
                 var jointIndex = DisconnectCandidates[n];
                 var cache = _jointsCache[jointIndex];
                 var joint = cache.Joint;
-                var connected = joint.connectedBody != null ? joint.connectedBody : cache.ConnectedBody;
-                if (joint == null || connected == null)
-                    continue;
-
                 var jointTr = joint.transform;
                 var worldPos = jointTr.TransformPoint(joint.anchor);
-                var outward = jointTr.position - connected.position;
+                var outward = jointTr.position - joint.connectedBody.position;
                 if (outward.sqrMagnitude < 1e-8f)
                     outward = jointTr.up;
                 else
@@ -155,7 +142,6 @@ namespace CodexFramework.Utils.Pools
                 results.Add(new DismemberedJoint
                 {
                     WorldPosition = worldPos,
-                    Transform = jointTr,
                     Outward = outward,
                 });
             }
@@ -163,21 +149,11 @@ namespace CodexFramework.Utils.Pools
             return results.Count;
         }
 
-        private void RestoreJoints()
-        {
-            DeactivateDummies();
-            RestoreJointConnections();
-        }
-
         private void RestoreJointConnections()
         {
-            if (_jointsCache == null)
-                return;
             for (var i = 0; i < _jointsCache.Length; i++)
             {
                 var joint = _jointsCache[i].Joint;
-                if (joint == null)
-                    continue;
                 joint.autoConfigureConnectedAnchor = true;
                 joint.connectedBody = null;
                 joint.connectedBody = _jointsCache[i].ConnectedBody;
