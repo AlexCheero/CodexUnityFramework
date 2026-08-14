@@ -10,7 +10,34 @@ namespace CodexFramework.Utils.Pools
     {
         [SerializeField, HideInInspector]
         private bool _initialized;
-        
+
+        public const string DismemberDummyName = "DismemberDummy";
+        public static bool IsDismemberDummy(Component c) => c.name == DismemberDummyName;
+
+        public bool ContainsDismemberDummy(Rigidbody rb)
+        {
+            for (var i = 0; i < _dismemberDummies.Length; i++)
+            {
+                if (_dismemberDummies[i] == rb)
+                    return true;
+            }
+            return false;
+        }
+
+        public static int CountGameplayRigidbodies(GameObject root)
+        {
+            if (root == null)
+                return 0;
+            var rbs = root.GetComponentsInChildren<Rigidbody>(true);
+            var count = 0;
+            for (var i = 0; i < rbs.Length; i++)
+            {
+                if (rbs[i] != null && !IsDismemberDummy(rbs[i]))
+                    count++;
+            }
+            return count;
+        }
+
         private void OnValidate()
         {
             if (Application.isPlaying)

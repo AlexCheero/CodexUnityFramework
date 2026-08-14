@@ -42,28 +42,9 @@ namespace CodexFramework.Utils.Pools
         private const int DismemberMinJoints = 2;
         /// <summary>Upper bound of random breaks is this fraction of active joints (inclusive).</summary>
         private const float DismemberMaxJointFraction = 0.5f;
-        public const string DismemberDummyName = "DismemberDummy";
 
         private bool _pendingReturnReset;
         private static readonly List<int> DisconnectCandidates = new(32);
-
-        public static bool IsDismemberDummy(Component c) => c.name == DismemberDummyName;
-
-#if UNITY_EDITOR
-        public static int CountGameplayRigidbodies(GameObject root)
-        {
-            if (root == null)
-                return 0;
-            var rbs = root.GetComponentsInChildren<Rigidbody>(true);
-            var count = 0;
-            for (var i = 0; i < rbs.Length; i++)
-            {
-                if (rbs[i] != null && !IsDismemberDummy(rbs[i]))
-                    count++;
-            }
-            return count;
-        }
-#endif
 
         public void OnGet()
         {
@@ -105,12 +86,11 @@ namespace CodexFramework.Utils.Pools
             DisconnectCandidates.Clear();
             for (var i = 0; i < _jointsCache.Length; i++)
             {
-                var joint = _jointsCache[i].Joint;
-                var connected = joint.connectedBody;
-                if (IsDismemberDummy(connected))
+                if (i >= _dismemberDummies.Length)
+                    break;
+                if (_jointsCache[i].Joint.connectedBody == _dismemberDummies[i])
                     continue;
-                if (i < _dismemberDummies.Length)
-                    DisconnectCandidates.Add(i);
+                DisconnectCandidates.Add(i);
             }
 
             var available = DisconnectCandidates.Count;
