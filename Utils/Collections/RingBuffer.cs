@@ -37,7 +37,7 @@ namespace CodexFramework.Utils.Collections
         public bool IsFull
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Count == Capacity;
+            get => _count == _buffer.Length;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -58,7 +58,7 @@ namespace CodexFramework.Utils.Collections
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Push(T item)
         {
-            if (_count < Capacity)
+            if (_count < _buffer.Length)
             {
                 var idx = (_start + _count) % _buffer.Length;
                 _buffer[idx] = item;
@@ -68,7 +68,7 @@ namespace CodexFramework.Utils.Collections
 
             var overwriteIdx = _start;
             _buffer[_start] = item;
-            _start = (_start + 1) % Capacity;
+            _start = (_start + 1) % _buffer.Length;
             return overwriteIdx;
         }
 
@@ -108,7 +108,18 @@ namespace CodexFramework.Utils.Collections
             if (_count == 0)
                 _start = 0;
         }
+
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ShiftForward(int count = 1) => _start = (_start + count) % _buffer.Length;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ShiftBackward(int count = 1)
+        {
+            _start = (_start - count) % _buffer.Length;
+            if (_start < 0) _start += _buffer.Length;
+        }
+
         public struct Enumerator
         {
             private readonly RingBuffer<T> _buffer;
@@ -121,7 +132,7 @@ namespace CodexFramework.Utils.Collections
             public bool MoveNext()
             {
                 _index++;
-                return _index < _buffer.Count;
+                return _index < _buffer._count;
             }
             public void Reset() => _index = -1;
             public ref T Current => ref _buffer[_index];
