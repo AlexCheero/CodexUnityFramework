@@ -11,6 +11,8 @@ namespace CodexFramework.Utils.Pools
         {
             public Vector3 WorldPosition;
             public Vector3 Outward;
+            public CharacterJoint Joint;
+            public Rigidbody Connected;
         }
 
         [Serializable]
@@ -133,6 +135,8 @@ namespace CodexFramework.Utils.Pools
                 {
                     WorldPosition = worldPos,
                     Outward = outward,
+                    Joint = joint,
+                    Connected = connected
                 });
             }
 
