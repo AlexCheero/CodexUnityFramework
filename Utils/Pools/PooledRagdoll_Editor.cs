@@ -43,6 +43,12 @@ namespace CodexFramework.Utils.Pools
             if (Application.isPlaying)
                 return;
 
+            // AssetDatabase.LoadAssetAtPath returns a persistent prefab asset, whose hierarchy
+            // Unity forbids us to mutate. Editable prefab contents and scene instances are
+            // explicitly recached by their callers and remain non-persistent here.
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+                return;
+
             if (_initialized && Check())
                 return;
             
