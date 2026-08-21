@@ -69,6 +69,11 @@ namespace CodexFramework.Utils.Pools
         
         private void Cache()
         {
+            // Recache on the final prefab root. Components may have been copied from the
+            // default ragdoll template, whose authored root scale can be different.
+            _pooledLocalScale = transform.localScale;
+            _hasPooledLocalScale = true;
+
             var joints = GetComponentsInChildren<CharacterJoint>(true);
             _jointsCache = new JointCache[joints.Length];
             for (var i = 0; i < joints.Length; i++)

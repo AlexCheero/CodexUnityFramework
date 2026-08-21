@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using CodexFramework.CodexEcsUnityIntegration.Views;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -49,12 +50,45 @@ namespace CodexFramework.Utils.Pools
         private readonly List<Rigidbody> _borrowedDismemberDummies = new(4);
         private static readonly List<int> DisconnectCandidates = new(32);
 
+        [SerializeField, HideInInspector]
+        private Vector3 _pooledLocalScale;
+        [SerializeField, HideInInspector]
+        private bool _hasPooledLocalScale;
+        private RagdollParts _pooledVisualParts;
+        private bool _hasPooledVisualParts;
+
+        private void Awake() => CacheVisualState();
+
+        private void CacheVisualState()
+        {
+            if (!_hasPooledLocalScale)
+            {
+                _pooledLocalScale = transform.localScale;
+                _hasPooledLocalScale = true;
+            }
+            if (_hasPooledVisualParts)
+                return;
+            var view = GetComponent<EntityView>();
+            _hasPooledVisualParts = view != null &&
+                                    view.TryGetComponentDefaultValue(out _pooledVisualParts);
+        }
+
+        private void ResetVisualState()
+        {
+            CacheVisualState();
+            transform.localScale = _pooledLocalScale;
+            if (_hasPooledVisualParts)
+                RagdollParts.ApplyDitherOpacity(in _pooledVisualParts, 1f);
+        }
+
         public void OnGet()
         {
             _pendingReturnReset = false;
+            
             // should be already called in OnReturn
             // RestoreBorrowedDummies();
             // DeactivateDummies();
+            // ResetVisualState();
 
             for (var i = 0; i < _children.Length; i++)
                 _children[i].Reapply();
@@ -73,6 +107,7 @@ namespace CodexFramework.Utils.Pools
 
         public void OnReturn()
         {
+            ResetVisualState();
             RestoreBorrowedDummies();
             DeactivateDummies();
             RestoreJointConnections();
