@@ -50,35 +50,22 @@ namespace CodexFramework.Utils.Pools
         private readonly List<Rigidbody> _borrowedDismemberDummies = new(4);
         private static readonly List<int> DisconnectCandidates = new(32);
 
-        [SerializeField, HideInInspector]
         private Vector3 _pooledLocalScale;
-        [SerializeField, HideInInspector]
-        private bool _hasPooledLocalScale;
         private RagdollParts _pooledVisualParts;
-        private bool _hasPooledVisualParts;
+        private bool _visualStateCached;
 
-        private void Awake() => CacheVisualState();
-
-        private void CacheVisualState()
+        private void Awake()
         {
-            if (!_hasPooledLocalScale)
-            {
-                _pooledLocalScale = transform.localScale;
-                _hasPooledLocalScale = true;
-            }
-            if (_hasPooledVisualParts)
-                return;
-            var view = GetComponent<EntityView>();
-            _hasPooledVisualParts = view != null &&
-                                    view.TryGetComponentDefaultValue(out _pooledVisualParts);
+            _pooledLocalScale = transform.localScale;
+            _visualStateCached = true;
         }
 
         private void ResetVisualState()
         {
-            CacheVisualState();
+            if (!_visualStateCached)
+                throw new InvalidOperationException("PooledRagdoll visual state was not initialized by Awake.");
             transform.localScale = _pooledLocalScale;
-            if (_hasPooledVisualParts)
-                RagdollParts.ApplyDitherOpacity(in _pooledVisualParts, 1f);
+            RagdollParts.ApplyDitherOpacity(in _pooledVisualParts, 1f);
         }
 
         public void OnGet()
