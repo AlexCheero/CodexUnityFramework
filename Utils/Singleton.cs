@@ -61,10 +61,13 @@ namespace CodexFramework.Utils
 
         protected virtual void Init() { }
 
-        void OnDestroy()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected void ClearSingletonInstance()
         {
             if (this == _instance)
                 _instance = null;
         }
+
+        void OnDestroy() => ClearSingletonInstance();
     }
 }
