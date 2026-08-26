@@ -15,6 +15,18 @@ namespace CodexFramework.Utils.Pools
             public Rigidbody Connected;
         }
 
+        public readonly struct DismembermentExclusion
+        {
+            public readonly Rigidbody Part;
+            public readonly Rigidbody ConnectedBody;
+
+            public DismembermentExclusion(Rigidbody part, Rigidbody connectedBody)
+            {
+                Part = part;
+                ConnectedBody = connectedBody;
+            }
+        }
+
         [Serializable]
         private struct ChildTransform
         {
@@ -119,11 +131,13 @@ namespace CodexFramework.Utils.Pools
         /// Breaks a random number of joints in [DismemberMinJoints, DismemberMaxJointFraction * count]
         /// (or all if fewer than DismemberMinJoints).
         /// Distal joints stay connected so a severed arm can still dangle.
-        /// Disabled high-detail parts are not cut; the parent joint uses that part as dummy
+        /// Excluded parts are not cut; the parent joint uses that part as dummy
         /// so the whole limb comes off. Broken joints stay active, retargeted to a dummy
         /// (null connectedBody would pin the piece to the world).
         /// </summary>
-        public int DisconnectRandomJoints(List<DismemberedJoint> results, RagdollHighDetail[] highDetails)
+        public int DisconnectRandomJoints(
+            List<DismemberedJoint> results,
+            IReadOnlyList<DismembermentExclusion> exclusions)
         {
             results.Clear();
             DisconnectCandidates.Clear();
@@ -135,7 +149,7 @@ namespace CodexFramework.Utils.Pools
                 var connected = joint.connectedBody;
                 if (connected == _dismemberDummies[i] || IsBorrowedDummy(connected))
                     continue;
-                if (IsDisabledHighDetailPart(joint, highDetails))
+                if (IsExcludedPart(joint, exclusions))
                     continue;
                 DisconnectCandidates.Add(i);
             }
@@ -165,7 +179,7 @@ namespace CodexFramework.Utils.Pools
                 else
                     outward.Normalize();
 
-                RetargetToDummy(jointIndex, joint, highDetails);
+                RetargetToDummy(jointIndex, joint, exclusions);
 
                 results.Add(new DismemberedJoint
                 {
@@ -179,17 +193,19 @@ namespace CodexFramework.Utils.Pools
             return results.Count;
         }
 
-        private static bool IsDisabledHighDetailPart(CharacterJoint joint, RagdollHighDetail[] highDetails)
+        private static bool IsExcludedPart(
+            CharacterJoint joint,
+            IReadOnlyList<DismembermentExclusion> exclusions)
         {
-            if (highDetails == null || highDetails.Length == 0)
+            if (exclusions == null || exclusions.Count == 0)
                 return false;
             if (!joint.TryGetComponent<Rigidbody>(out var rb))
                 return false;
-            for (var i = 0; i < highDetails.Length; i++)
+            for (var i = 0; i < exclusions.Count; i++)
             {
-                if (highDetails[i].rigidbody != rb)
+                if (exclusions[i].Part != rb)
                     continue;
-                return !rb.detectCollisions;
+                return true;
             }
             return false;
         }
@@ -215,9 +231,12 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
-        private void RetargetToDummy(int jointIndex, CharacterJoint joint, RagdollHighDetail[] highDetails)
+        private void RetargetToDummy(
+            int jointIndex,
+            CharacterJoint joint,
+            IReadOnlyList<DismembermentExclusion> exclusions)
         {
-            var dummy = ResolveDismemberDummy(jointIndex, joint, highDetails);
+            var dummy = ResolveDismemberDummy(jointIndex, joint, exclusions);
             dummy.gameObject.SetActive(true);
             dummy.isKinematic = false;
             if (dummy != _dismemberDummies[jointIndex])
@@ -248,18 +267,19 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
-        private Rigidbody ResolveDismemberDummy(int jointIndex, CharacterJoint joint, RagdollHighDetail[] highDetails)
+        private Rigidbody ResolveDismemberDummy(
+            int jointIndex,
+            CharacterJoint joint,
+            IReadOnlyList<DismembermentExclusion> exclusions)
         {
             if (!joint.TryGetComponent<Rigidbody>(out var flyingRb))
                 return _dismemberDummies[jointIndex];
-            for (var i = 0; i < highDetails.Length; i++)
+            for (var i = 0; i < exclusions.Count; i++)
             {
-                var part = highDetails[i];
-                if (part.connectedBody != flyingRb)
+                var part = exclusions[i];
+                if (part.ConnectedBody != flyingRb)
                     continue;
-                var rb = part.rigidbody;
-                if (!rb.detectCollisions)
-                    return rb;
+                return part.Part;
             }
             return _dismemberDummies[jointIndex];
         }
