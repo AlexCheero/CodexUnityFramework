@@ -1,61 +1,86 @@
 #if !CODEX_UNITASK_SUPPORT
 using System;
 using System.Collections;
+using System.Threading;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
 {
     public partial class ObjectPool
     {
-        partial void BeginInitialGrow() => RequestGrow(_items.Length);
+        partial void BeginInitialGrow() => RequestGrow(_minimumCount);
 
         partial void StartGrowIfNeeded()
         {
-            if (!_isGrowing)
+            if (!_isGrowing && _allocatedCount < _growTarget)
                 StartCoroutine(GrowRoutine(_growPerFrame));
         }
 
         public void GetAsync(Action<PoolItem> onReady, bool forceGrow = true) =>
-            EnqueueAsyncWaiter(onReady, forceGrow);
+            GetAsync(onReady, CancellationToken.None, forceGrow);
+
+        public void GetAsync(
+            Action<PoolItem> onReady,
+            CancellationToken cancellationToken,
+            bool forceGrow = true) =>
+            EnqueueAsyncWaiter(onReady, forceGrow, cancellationToken);
 
         public void GetAsync<TState>(TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
-            EnqueueAsyncWaiter(item => onReady?.Invoke(item, state), forceGrow);
+            GetAsync(state, onReady, CancellationToken.None, forceGrow);
+
+        public void GetAsync<TState>(
+            TState state,
+            Action<PoolItem, TState> onReady,
+            CancellationToken cancellationToken,
+            bool forceGrow = true) =>
+            EnqueueAsyncWaiter(item => onReady?.Invoke(item, state), forceGrow, cancellationToken);
 
         public void GetAsync(Vector3 position, Action<PoolItem> onReady, bool forceGrow = true) =>
+            GetAsync(position, onReady, CancellationToken.None, forceGrow);
+
+        public void GetAsync(
+            Vector3 position,
+            Action<PoolItem> onReady,
+            CancellationToken cancellationToken,
+            bool forceGrow = true) =>
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
-                {
-                    item.gameObject.SetActive(false);
-                    item.transform.position = position;
-                    item.gameObject.SetActive(true);
-                }
+                    PlaceLease(item, position, false, default);
                 onReady?.Invoke(item);
-            }, forceGrow);
+            }, forceGrow, cancellationToken);
 
         public void GetAsync<TState>(Vector3 position, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
+            GetAsync(position, state, onReady, CancellationToken.None, forceGrow);
+
+        public void GetAsync<TState>(
+            Vector3 position,
+            TState state,
+            Action<PoolItem, TState> onReady,
+            CancellationToken cancellationToken,
+            bool forceGrow = true) =>
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
-                {
-                    item.gameObject.SetActive(false);
-                    item.transform.position = position;
-                    item.gameObject.SetActive(true);
-                }
+                    PlaceLease(item, position, false, default);
                 onReady?.Invoke(item, state);
-            }, forceGrow);
+            }, forceGrow, cancellationToken);
 
         public void GetAsync(Vector3 position, Quaternion rotation, Action<PoolItem> onReady, bool forceGrow = true) =>
+            GetAsync(position, rotation, onReady, CancellationToken.None, forceGrow);
+
+        public void GetAsync(
+            Vector3 position,
+            Quaternion rotation,
+            Action<PoolItem> onReady,
+            CancellationToken cancellationToken,
+            bool forceGrow = true) =>
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
-                {
-                    item.gameObject.SetActive(false);
-                    item.transform.SetPositionAndRotation(position, rotation);
-                    item.gameObject.SetActive(true);
-                }
+                    PlaceLease(item, position, true, rotation);
                 onReady?.Invoke(item);
-            }, forceGrow);
+            }, forceGrow, cancellationToken);
 
         public void GetAsync<TState>(
             Vector3 position,
@@ -63,16 +88,21 @@ namespace CodexFramework.Utils.Pools
             TState state,
             Action<PoolItem, TState> onReady,
             bool forceGrow = true) =>
+            GetAsync(position, rotation, state, onReady, CancellationToken.None, forceGrow);
+
+        public void GetAsync<TState>(
+            Vector3 position,
+            Quaternion rotation,
+            TState state,
+            Action<PoolItem, TState> onReady,
+            CancellationToken cancellationToken,
+            bool forceGrow = true) =>
             EnqueueAsyncWaiter(item =>
             {
                 if (item != null)
-                {
-                    item.gameObject.SetActive(false);
-                    item.transform.SetPositionAndRotation(position, rotation);
-                    item.gameObject.SetActive(true);
-                }
+                    PlaceLease(item, position, true, rotation);
                 onReady?.Invoke(item, state);
-            }, forceGrow);
+            }, forceGrow, cancellationToken);
 
         private IEnumerator GrowRoutine(int growPerFrame)
         {
@@ -80,6 +110,7 @@ namespace CodexFramework.Utils.Pools
                 yield break;
 
             _isGrowing = true;
+            var completedNormally = false;
 
 #if DEBUG
             if (growPerFrame < 1)
@@ -89,53 +120,31 @@ namespace CodexFramework.Utils.Pools
             }
 #endif
 
-            var addThisFrame = growPerFrame;
-            while (this)
+            try
             {
-                if (_growTarget > (_items?.Length ?? 0))
+                while (this && PrepareGrowBatch())
                 {
-                    const int maxResizeDelta = 64;
-                    CodexECS.Utility.Utils.ResizeArray(_growTarget - 1, ref _items, maxResizeDelta);
-                }
-
-                var fillIdx = -1;
-                for (int i = _firstAvailable; i < _items.Length; i++)
-                {
-                    if (_items[i] == null)
-                    {
-                        fillIdx = i;
+                    var addedCount = 0;
+                    while (addedCount < growPerFrame && TryGrowOne())
+                        addedCount++;
+                    if (addedCount == 0)
                         break;
-                    }
-                }
-
-                if (fillIdx < 0)
-                {
-                    if ((_items?.Length ?? 0) >= _growTarget)
-                        break;
-
-                    const int maxResizeDelta = 64;
-                    CodexECS.Utility.Utils.ResizeArray(Math.Max(_growTarget, 1) - 1, ref _items, maxResizeDelta);
-                    continue;
-                }
-
-                AddNew(fillIdx);
-                TryFulfillAsyncWaiters();
-
-                addThisFrame--;
-                if (addThisFrame == 0)
-                {
-                    addThisFrame = growPerFrame;
+                    // Keep the grow latch for the rest of this frame. Otherwise a same-frame
+                    // request burst can restart this routine and spend the budget repeatedly.
                     yield return null;
                 }
+                completedNormally = true;
             }
-
-            if (this)
+            finally
             {
-                _isGrowing = false;
-                if (_asyncWaiters.Count > 0 || HasUnfilledSlots())
-                    RequestGrow(DesiredSizeForGets(0));
-                else
-                    _growTarget = _items?.Length ?? 0;
+                if (this)
+                {
+                    _isGrowing = false;
+                    if (completedNormally)
+                        PrepareGrowBatch();
+                    else
+                        FailAllAsyncWaiters();
+                }
             }
         }
     }

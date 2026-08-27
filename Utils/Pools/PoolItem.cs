@@ -54,6 +54,8 @@ namespace CodexFramework.Utils.Pools
         }
 
         private bool _isInPool;
+        private bool _isReturning;
+        private int _leaseVersion;
         public bool IsInPool
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -68,25 +70,78 @@ namespace CodexFramework.Utils.Pools
         
         public void AddToPool(ObjectPool pool, int idx)
         {
-            _pool = pool;
-            _idx = idx;
+            SetPoolIndex(pool, idx);
+            _isReturning = false;
             _isInPool = true;
         }
 
-        public void OnGetFromPool()
+        internal void SetPoolIndex(ObjectPool pool, int idx)
         {
+            _pool = pool;
+            _idx = idx;
+        }
+
+        internal int MarkCheckedOut()
+        {
+            _isReturning = false;
             _isInPool = false;
+            _leaseVersion = unchecked(_leaseVersion + 1);
+            return _leaseVersion;
+        }
+
+        internal int LeaseVersion => _leaseVersion;
+        internal bool IsReturning => _isReturning;
+
+        internal void InvokeOnGetCallbacks()
+        {
             for (var i = 0; i < _getPoolableBehaviours.Length; i++)
                 _getPoolableBehaviours[i].OnGet();
         }
 
+        public void OnGetFromPool()
+        {
+            MarkCheckedOut();
+            InvokeOnGetCallbacks();
+        }
+
         public void ReturnToPool() => _pool.ReturnItem(this);
+
+        internal void MarkReturning()
+        {
+            _isReturning = true;
+            _isInPool = true;
+        }
+
+        internal void MarkReturned()
+        {
+            _isReturning = false;
+            _isInPool = true;
+        }
+
+        internal void InvokeOnReturnCallbacks()
+        {
+            for (var i = 0; i < _returnPoolableBehaviours.Length; i++)
+                _returnPoolableBehaviours[i].OnReturn();
+        }
 
         //TODO: bad design- OnReturn is called from ObjectPool.ReturnItem
         public void OnReturn()
         {
-            for (var i = 0; i < _returnPoolableBehaviours.Length; i++)
-                _returnPoolableBehaviours[i].OnReturn();
+            MarkReturning();
+            try
+            {
+                InvokeOnReturnCallbacks();
+            }
+            finally
+            {
+                MarkReturned();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_pool)
+                _pool.NotifyItemDestroyed();
         }
 
         public T[] GetAllComponentsInChildrenAndCache<T>(bool includeInactive = false) where T : Component
