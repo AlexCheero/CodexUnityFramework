@@ -67,6 +67,16 @@ namespace CodexFramework.Utils.Pools
         private Vector3 _pooledLocalScale;
         private bool _visualStateCached;
 
+        private bool _corpseBakePhysicsSuspended;
+        private Rigidbody[] _corpseBakeRigidbodies;
+        private Collider[] _corpseBakeColliders;
+        private bool[] _corpseBakeWasKinematic;
+        private bool[] _corpseBakeDetectedCollisions;
+        private bool[] _corpseBakeColliderEnabled;
+        private bool _corpseBakeRigidbodyCacheNeedsRefresh;
+
+        public bool IsPhysicsSuspendedForCorpseBake => _corpseBakePhysicsSuspended;
+
         private void Awake()
         {
             VisualPropertyBlock ??= new MaterialPropertyBlock();
@@ -96,6 +106,7 @@ namespace CodexFramework.Utils.Pools
 
         public void OnGet()
         {
+            RestorePhysicsAfterCorpseBakeSuspension();
             _pendingReturnReset = false;
             
             // should be already called in OnReturn
@@ -115,16 +126,129 @@ namespace CodexFramework.Utils.Pools
                 rb.isKinematic = false;
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
+                rb.WakeUp();
             }
         }
 
         public void OnReturn()
         {
+            RestorePhysicsAfterCorpseBakeSuspension();
             ResetVisualState();
             RestoreBorrowedDummies();
             DeactivateDummies();
             RestoreJointConnections();
             EnqueueReturnReset(this);
+        }
+
+        /// <summary>
+        /// Freezes the exact current ragdoll pose while it waits for a later-frame combined-mesh
+        /// bake. Renderers and the pooled root stay active, so the corpse remains visible.
+        /// </summary>
+        public void SuspendPhysicsUntilCorpseBake()
+        {
+            if (_corpseBakePhysicsSuspended)
+                return;
+
+            EnsureCorpseBakePhysicsCache();
+            for (var i = 0; i < _corpseBakeColliders.Length; i++)
+            {
+                var collider = _corpseBakeColliders[i];
+                if (collider == null)
+                    continue;
+                _corpseBakeColliderEnabled[i] = collider.enabled;
+            }
+
+            for (var i = 0; i < _corpseBakeRigidbodies.Length; i++)
+            {
+                var rigidbody = _corpseBakeRigidbodies[i];
+                if (rigidbody == null)
+                    continue;
+
+                _corpseBakeWasKinematic[i] = rigidbody.isKinematic;
+                _corpseBakeDetectedCollisions[i] = rigidbody.detectCollisions;
+            }
+
+            _corpseBakePhysicsSuspended = true;
+            for (var i = 0; i < _corpseBakeColliders.Length; i++)
+            {
+                var collider = _corpseBakeColliders[i];
+                if (collider != null)
+                    collider.enabled = false;
+            }
+
+            for (var i = 0; i < _corpseBakeRigidbodies.Length; i++)
+            {
+                var rigidbody = _corpseBakeRigidbodies[i];
+                if (rigidbody == null)
+                    continue;
+                if (!rigidbody.isKinematic)
+                {
+                    rigidbody.linearVelocity = Vector3.zero;
+                    rigidbody.angularVelocity = Vector3.zero;
+                }
+
+                rigidbody.detectCollisions = false;
+                rigidbody.isKinematic = true;
+            }
+
+            // Unity's 3D Joint has no enabled switch. Once every endpoint (including
+            // dismemberment dummies) is kinematic and collision-free, there is no dynamic
+            // joint island to solve. Keep connectedBody untouched: null would pin to world
+            // and would also lose the exact current dismemberment topology.
+        }
+
+        /// <summary>Idempotent pool safety reset, called on both return and checkout.</summary>
+        private void RestorePhysicsAfterCorpseBakeSuspension()
+        {
+            if (!_corpseBakePhysicsSuspended)
+                return;
+
+            _corpseBakePhysicsSuspended = false;
+
+            // Restore collider participation while every suspended body is still kinematic,
+            // then restore each body's collision and kinematic state exactly as captured.
+            for (var i = 0; i < _corpseBakeColliders.Length; i++)
+            {
+                var collider = _corpseBakeColliders[i];
+                if (collider != null)
+                    collider.enabled = _corpseBakeColliderEnabled[i];
+            }
+
+            for (var i = 0; i < _corpseBakeRigidbodies.Length; i++)
+            {
+                var rigidbody = _corpseBakeRigidbodies[i];
+                if (rigidbody == null)
+                    continue;
+                rigidbody.detectCollisions = _corpseBakeDetectedCollisions[i];
+                rigidbody.isKinematic = _corpseBakeWasKinematic[i];
+            }
+
+            if (_corpseBakeRigidbodyCacheNeedsRefresh)
+            {
+                ClearCorpseBakeRigidbodyCache();
+                _corpseBakeRigidbodyCacheNeedsRefresh = false;
+            }
+        }
+
+        private void EnsureCorpseBakePhysicsCache()
+        {
+            if (_corpseBakeRigidbodies == null)
+                _corpseBakeRigidbodies = GetComponentsInChildren<Rigidbody>(true);
+            if (_corpseBakeColliders == null)
+                _corpseBakeColliders = GetComponentsInChildren<Collider>(true);
+
+            if (_corpseBakeWasKinematic == null ||
+                _corpseBakeWasKinematic.Length != _corpseBakeRigidbodies.Length)
+            {
+                _corpseBakeWasKinematic = new bool[_corpseBakeRigidbodies.Length];
+                _corpseBakeDetectedCollisions = new bool[_corpseBakeRigidbodies.Length];
+            }
+
+            if (_corpseBakeColliderEnabled == null ||
+                _corpseBakeColliderEnabled.Length != _corpseBakeColliders.Length)
+            {
+                _corpseBakeColliderEnabled = new bool[_corpseBakeColliders.Length];
+            }
         }
 
         /// <summary>
@@ -139,6 +263,7 @@ namespace CodexFramework.Utils.Pools
             List<DismemberedJoint> results,
             IReadOnlyList<DismembermentExclusion> exclusions)
         {
+            EnsureRuntimeDismemberDummies();
             results.Clear();
             DisconnectCandidates.Clear();
             for (var i = 0; i < _jointsCache.Length; i++)
@@ -220,6 +345,67 @@ namespace CodexFramework.Utils.Pools
             return false;
         }
 
+        /// <summary>
+        /// Selects one independently severed, leaf-most gib for emergency manual motion.
+        /// The deepest-cut rule prevents a moved transform from carrying another separately
+        /// severed descendant with it. Fastest velocity wins, with cache order as a stable tie.
+        /// </summary>
+        public bool TryGetEmergencyDismemberedMotionBody(out Rigidbody movingBody)
+        {
+            movingBody = null;
+            var bestSpeedSq = -1f;
+            for (var i = 0; i < _jointsCache.Length; i++)
+            {
+                if (!TryGetPrimaryDismemberedBody(i, out var candidate))
+                    continue;
+
+                var containsDeeperCut = false;
+                for (var j = 0; j < _jointsCache.Length; j++)
+                {
+                    if (j == i || !TryGetPrimaryDismemberedBody(j, out var other))
+                        continue;
+                    if (!other.transform.IsChildOf(candidate.transform))
+                        continue;
+                    containsDeeperCut = true;
+                    break;
+                }
+
+                if (containsDeeperCut)
+                    continue;
+
+                var speedSq = candidate.linearVelocity.sqrMagnitude;
+                if (speedSq <= bestSpeedSq)
+                    continue;
+                bestSpeedSq = speedSq;
+                movingBody = candidate;
+            }
+
+            return movingBody != null;
+        }
+
+        private bool TryGetPrimaryDismemberedBody(int jointIndex, out Rigidbody body)
+        {
+            body = null;
+            if (_dismemberDummies == null ||
+                (uint)jointIndex >= (uint)_jointsCache.Length ||
+                (uint)jointIndex >= (uint)_dismemberDummies.Length)
+            {
+                return false;
+            }
+
+            var joint = _jointsCache[jointIndex].Joint;
+            if (joint == null || !joint.TryGetComponent(out body) || body == null)
+                return false;
+
+            // A borrowed high-detail body also has its own joint redirected to a dedicated
+            // dummy, but that redirect only supports another primary cut; it is not a gib.
+            if (IsBorrowedDummy(body))
+                return false;
+
+            var connected = joint.connectedBody;
+            return connected == _dismemberDummies[jointIndex] || IsBorrowedDummy(connected);
+        }
+
         private void RestoreJointConnections()
         {
             for (var i = 0; i < _jointsCache.Length; i++)
@@ -238,7 +424,7 @@ namespace CodexFramework.Utils.Pools
         {
             var dummy = ResolveDismemberDummy(jointIndex, joint, exclusions);
             dummy.gameObject.SetActive(true);
-            dummy.isKinematic = false;
+            dummy.isKinematic = _corpseBakePhysicsSuspended;
             if (dummy != _dismemberDummies[jointIndex])
             {
                 dummy.detectCollisions = false;
@@ -261,7 +447,7 @@ namespace CodexFramework.Utils.Pools
                     continue;
                 var dedicated = _dismemberDummies[i];
                 dedicated.gameObject.SetActive(true);
-                dedicated.isKinematic = false;
+                dedicated.isKinematic = _corpseBakePhysicsSuspended;
                 partJoint.connectedBody = dedicated;
                 return;
             }
@@ -284,6 +470,66 @@ namespace CodexFramework.Utils.Pools
             return _dismemberDummies[jointIndex];
         }
 
+        /// <summary>
+        /// Player-build safety for an older prefab whose serialized dummy references were
+        /// never recached. Valid prefabs do no work here; malformed ones repair once, lazily
+        /// on their first dismemberment, instead of dereferencing a null dummy.
+        /// </summary>
+        private void EnsureRuntimeDismemberDummies()
+        {
+            var jointCount = _jointsCache.Length;
+            if (_dismemberDummies == null || _dismemberDummies.Length != jointCount)
+                Array.Resize(ref _dismemberDummies, jointCount);
+
+            var createdAny = false;
+            for (var i = 0; i < jointCount; i++)
+            {
+                if (_dismemberDummies[i] != null)
+                    continue;
+
+                var joint = _jointsCache[i].Joint;
+                if (joint == null)
+                    continue;
+
+                var go = new GameObject("DismemberDummy");
+                go.SetActive(false);
+                go.layer = joint.gameObject.layer;
+                var dummyTransform = go.transform;
+                dummyTransform.SetParent(joint.transform, false);
+                dummyTransform.SetLocalPositionAndRotation(joint.anchor, Quaternion.identity);
+                dummyTransform.localScale = Vector3.one;
+
+                var dummy = go.AddComponent<Rigidbody>();
+                dummy.isKinematic = true;
+                dummy.useGravity = false;
+                dummy.detectCollisions = false;
+                dummy.interpolation = RigidbodyInterpolation.None;
+                _dismemberDummies[i] = dummy;
+                createdAny = true;
+            }
+
+            if (!createdAny)
+                return;
+
+            // A previous pool life may already have built this lazy suspension cache.
+            // Do not discard an active snapshot before OnReturn has restored it. Newly
+            // created dummies start inert; refresh the cache after restoration instead.
+            if (_corpseBakePhysicsSuspended)
+            {
+                _corpseBakeRigidbodyCacheNeedsRefresh = true;
+                return;
+            }
+
+            ClearCorpseBakeRigidbodyCache();
+        }
+
+        private void ClearCorpseBakeRigidbodyCache()
+        {
+            _corpseBakeRigidbodies = null;
+            _corpseBakeWasKinematic = null;
+            _corpseBakeDetectedCollisions = null;
+        }
+
         private void RestoreBorrowedDummies()
         {
             for (var i = 0; i < _borrowedDismemberDummies.Count; i++)
@@ -293,9 +539,14 @@ namespace CodexFramework.Utils.Pools
 
         private void DeactivateDummies()
         {
+            if (_dismemberDummies == null)
+                return;
+
             for (var i = 0; i < _dismemberDummies.Length; i++)
             {
                 var rb = _dismemberDummies[i];
+                if (rb == null)
+                    continue;
                 if (!rb.isKinematic)
                 {
                     rb.linearVelocity = Vector3.zero;
