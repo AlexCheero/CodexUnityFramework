@@ -68,12 +68,11 @@ namespace CodexFramework.Utils.Pools
         private bool _visualStateCached;
 
         private bool _corpseBakePhysicsSuspended;
-        private Rigidbody[] _corpseBakeRigidbodies;
-        private Collider[] _corpseBakeColliders;
+        private readonly List<Rigidbody> _corpseBakeRigidbodies = new(16);
+        private readonly List<Collider> _corpseBakeColliders = new(16);
         private bool[] _corpseBakeWasKinematic;
         private bool[] _corpseBakeDetectedCollisions;
         private bool[] _corpseBakeColliderEnabled;
-        private bool _corpseBakeRigidbodyCacheNeedsRefresh;
 
         public bool IsPhysicsSuspendedForCorpseBake => _corpseBakePhysicsSuspended;
 
@@ -150,7 +149,7 @@ namespace CodexFramework.Utils.Pools
                 return;
 
             EnsureCorpseBakePhysicsCache();
-            for (var i = 0; i < _corpseBakeColliders.Length; i++)
+            for (var i = 0; i < _corpseBakeColliders.Count; i++)
             {
                 var collider = _corpseBakeColliders[i];
                 if (collider == null)
@@ -158,7 +157,7 @@ namespace CodexFramework.Utils.Pools
                 _corpseBakeColliderEnabled[i] = collider.enabled;
             }
 
-            for (var i = 0; i < _corpseBakeRigidbodies.Length; i++)
+            for (var i = 0; i < _corpseBakeRigidbodies.Count; i++)
             {
                 var rigidbody = _corpseBakeRigidbodies[i];
                 if (rigidbody == null)
@@ -169,14 +168,14 @@ namespace CodexFramework.Utils.Pools
             }
 
             _corpseBakePhysicsSuspended = true;
-            for (var i = 0; i < _corpseBakeColliders.Length; i++)
+            for (var i = 0; i < _corpseBakeColliders.Count; i++)
             {
                 var collider = _corpseBakeColliders[i];
                 if (collider != null)
                     collider.enabled = false;
             }
 
-            for (var i = 0; i < _corpseBakeRigidbodies.Length; i++)
+            for (var i = 0; i < _corpseBakeRigidbodies.Count; i++)
             {
                 var rigidbody = _corpseBakeRigidbodies[i];
                 if (rigidbody == null)
@@ -207,14 +206,14 @@ namespace CodexFramework.Utils.Pools
 
             // Restore collider participation while every suspended body is still kinematic,
             // then restore each body's collision and kinematic state exactly as captured.
-            for (var i = 0; i < _corpseBakeColliders.Length; i++)
+            for (var i = 0; i < _corpseBakeColliders.Count; i++)
             {
                 var collider = _corpseBakeColliders[i];
                 if (collider != null)
                     collider.enabled = _corpseBakeColliderEnabled[i];
             }
 
-            for (var i = 0; i < _corpseBakeRigidbodies.Length; i++)
+            for (var i = 0; i < _corpseBakeRigidbodies.Count; i++)
             {
                 var rigidbody = _corpseBakeRigidbodies[i];
                 if (rigidbody == null)
@@ -223,31 +222,32 @@ namespace CodexFramework.Utils.Pools
                 rigidbody.isKinematic = _corpseBakeWasKinematic[i];
             }
 
-            if (_corpseBakeRigidbodyCacheNeedsRefresh)
-            {
-                ClearCorpseBakeRigidbodyCache();
-                _corpseBakeRigidbodyCacheNeedsRefresh = false;
-            }
+            ClearCorpseBakePhysicsCache();
         }
 
         private void EnsureCorpseBakePhysicsCache()
         {
-            if (_corpseBakeRigidbodies == null)
-                _corpseBakeRigidbodies = GetComponentsInChildren<Rigidbody>(true);
-            if (_corpseBakeColliders == null)
-                _corpseBakeColliders = GetComponentsInChildren<Collider>(true);
+            // Pool lives can add, remove or replace optional ragdoll pieces. Refresh the live
+            // component set for each suspension, then retain it unchanged until restoration.
+            // List capacity is reused, so the warmed path does not allocate.
+            _corpseBakeRigidbodies.Clear();
+            GetComponentsInChildren(true, _corpseBakeRigidbodies);
+            _corpseBakeColliders.Clear();
+            GetComponentsInChildren(true, _corpseBakeColliders);
 
             if (_corpseBakeWasKinematic == null ||
-                _corpseBakeWasKinematic.Length != _corpseBakeRigidbodies.Length)
+                _corpseBakeDetectedCollisions == null ||
+                _corpseBakeWasKinematic.Length < _corpseBakeRigidbodies.Count ||
+                _corpseBakeDetectedCollisions.Length < _corpseBakeRigidbodies.Count)
             {
-                _corpseBakeWasKinematic = new bool[_corpseBakeRigidbodies.Length];
-                _corpseBakeDetectedCollisions = new bool[_corpseBakeRigidbodies.Length];
+                _corpseBakeWasKinematic = new bool[_corpseBakeRigidbodies.Count];
+                _corpseBakeDetectedCollisions = new bool[_corpseBakeRigidbodies.Count];
             }
 
             if (_corpseBakeColliderEnabled == null ||
-                _corpseBakeColliderEnabled.Length != _corpseBakeColliders.Length)
+                _corpseBakeColliderEnabled.Length < _corpseBakeColliders.Count)
             {
-                _corpseBakeColliderEnabled = new bool[_corpseBakeColliders.Length];
+                _corpseBakeColliderEnabled = new bool[_corpseBakeColliders.Count];
             }
         }
 
@@ -515,19 +515,15 @@ namespace CodexFramework.Utils.Pools
             // Do not discard an active snapshot before OnReturn has restored it. Newly
             // created dummies start inert; refresh the cache after restoration instead.
             if (_corpseBakePhysicsSuspended)
-            {
-                _corpseBakeRigidbodyCacheNeedsRefresh = true;
                 return;
-            }
 
-            ClearCorpseBakeRigidbodyCache();
+            ClearCorpseBakePhysicsCache();
         }
 
-        private void ClearCorpseBakeRigidbodyCache()
+        private void ClearCorpseBakePhysicsCache()
         {
-            _corpseBakeRigidbodies = null;
-            _corpseBakeWasKinematic = null;
-            _corpseBakeDetectedCollisions = null;
+            _corpseBakeRigidbodies.Clear();
+            _corpseBakeColliders.Clear();
         }
 
         private void RestoreBorrowedDummies()
