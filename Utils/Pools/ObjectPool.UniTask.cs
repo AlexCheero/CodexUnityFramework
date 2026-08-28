@@ -19,6 +19,46 @@ namespace CodexFramework.Utils.Pools
                 GrowAsync(_growPerFrame).Forget();
         }
 
+        /// <summary>
+        /// Waits until the pool has finished its authored initial allocation without leasing
+        /// any items. Pool growth remains frame-budgeted by <see cref="GrowAsync"/>.
+        /// </summary>
+        public async UniTask WaitForInitialAllocationAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!this || _isDestroying)
+                return;
+
+            // Capture the Init-time target. Later gameplay requests may increase _growTarget;
+            // they must not extend a startup warmup indefinitely.
+            var target = _minimumCount;
+            var lastAllocatedCount = _allocatedCount;
+            var stagnantFrames = 0;
+            var maxStagnantFrames = Math.Max(120, target);
+            while (this && !_isDestroying && _allocatedCount < target)
+            {
+                // GrowAsync is fire-and-forget and clears its latch if construction faults.
+                // Give it another opportunity to start, but never hold startup forever when a
+                // malformed prototype makes repeated progress impossible.
+                StartGrowIfNeeded();
+                await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
+
+                if (_allocatedCount > lastAllocatedCount)
+                {
+                    lastAllocatedCount = _allocatedCount;
+                    stagnantFrames = 0;
+                    continue;
+                }
+
+                if (++stagnantFrames >= maxStagnantFrames)
+                {
+                    throw new TimeoutException(
+                        $"Pool '{name}' made no allocation progress for {stagnantFrames} frames " +
+                        $"({_allocatedCount}/{target} items).");
+                }
+            }
+        }
+
         public UniTask<PoolItem> GetAsync(bool forceGrow = true) =>
             GetAsync(CancellationToken.None, forceGrow);
 
