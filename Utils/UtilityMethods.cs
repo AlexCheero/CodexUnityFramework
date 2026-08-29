@@ -2,12 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using TMPro;
-using Unity.Mathematics;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.TextCore.Text;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 #if CODEX_UNITASK_SUPPORT
@@ -16,6 +12,7 @@ using Cysharp.Threading.Tasks;
 
 #if UNITY_EDITOR
 using System.Reflection;
+using UnityEditor;
 #endif
 
 namespace CodexFramework.Utils
@@ -59,8 +56,6 @@ namespace CodexFramework.Utils
         public static string PaintString(this string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGBA(color)}>{text}</color>";
         public static string PaintString(this string text, Vector3 color, float alpha = 1f) => text.PaintString(new Color(color.x, color.y, color.z, alpha));
         public static string PaintString(this string text, Vector4 color) => text.PaintString(new Color(color.x, color.y, color.z, color.w));
-        public static string PaintString(this string text, float3 color, float alpha = 1f) => text.PaintString(new Color(color.x, color.y, color.z, alpha));
-        public static string PaintString(this string text, float4 color) => text.PaintString(new Color(color.x, color.y, color.z, color.w));
 
         public static int GetMask(params int[] layers)
         {
@@ -151,11 +146,11 @@ namespace CodexFramework.Utils
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SetAlpha(this TextMeshProUGUI text, float alpha)
+        public static void SetAlpha(this Graphic graphic, float alpha)
         {
-            var color = text.color;
+            var color = graphic.color;
             color.a = alpha;
-            text.color = color;
+            graphic.color = color;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

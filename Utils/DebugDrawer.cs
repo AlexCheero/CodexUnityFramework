@@ -1,5 +1,4 @@
-﻿#if UNITY_EDITOR
-using Unity.Mathematics;
+#if UNITY_EDITOR
 using UnityEngine;
 
 namespace CodexFramework.Utils
@@ -81,27 +80,27 @@ namespace CodexFramework.Utils
             Debug.DrawLine(nextPos, nextPos - Vector3.forward*dimensions.z, color, duration);
         }
 
-        public static void DrawCapsule(float3 p0, float3 p1, float radius, Color color, float3 up, float duration = 0f)
+        public static void DrawCapsule(Vector3 p0, Vector3 p1, float radius, Color color, Vector3 up, float duration = 0f)
         {
-            float3 axis = p1 - p0;
-            float axisLen = math.length(axis);
+            Vector3 axis = p1 - p0;
+            float axisLen = axis.magnitude;
 
             // Build two vectors perpendicular to the capsule axis
-            float3 axisDir = axisLen > 1e-6f ? axis / axisLen : up;
-            float3 perp1 = math.abs(math.dot(axisDir, up)) < 0.99f
-                ? math.normalize(math.cross(axisDir, up))
-                : math.normalize(math.cross(axisDir, new float3(1, 0, 0)));
-            float3 perp2 = math.cross(axisDir, perp1);
+            Vector3 axisDir = axisLen > 1e-6f ? axis / axisLen : up;
+            Vector3 perp1 = Mathf.Abs(Vector3.Dot(axisDir, up)) < 0.99f
+                ? Vector3.Cross(axisDir, up).normalized
+                : Vector3.Cross(axisDir, Vector3.right).normalized;
+            Vector3 perp2 = Vector3.Cross(axisDir, perp1);
 
             const int segments = 16;
-            const float step = math.PI * 2f / segments;
+            const float step = Mathf.PI * 2f / segments;
 
             // -- Cylinder lines (4 vertical lines along the sides) --
             for (int i = 0; i < 4; i++)
             {
-                float angle = i * math.PI * 0.5f;
-                float3 offset = (math.cos(angle) * perp1 + math.sin(angle) * perp2) * radius;
-                Debug.DrawLine((Vector3)(p0 + offset), (Vector3)(p1 + offset), color, duration);
+                float angle = i * Mathf.PI * 0.5f;
+                Vector3 offset = (Mathf.Cos(angle) * perp1 + Mathf.Sin(angle) * perp2) * radius;
+                Debug.DrawLine(p0 + offset, p1 + offset, color, duration);
             }
 
             // -- Circles at p0 and p1 (capsule waist rings) --
@@ -109,16 +108,16 @@ namespace CodexFramework.Utils
             {
                 float a0 = i * step;
                 float a1 = (i + 1) * step;
-                float3 off0 = (math.cos(a0) * perp1 + math.sin(a0) * perp2) * radius;
-                float3 off1 = (math.cos(a1) * perp1 + math.sin(a1) * perp2) * radius;
-                Debug.DrawLine((Vector3)(p0 + off0), (Vector3)(p0 + off1), color, duration);
-                Debug.DrawLine((Vector3)(p1 + off0), (Vector3)(p1 + off1), color, duration);
+                Vector3 off0 = (Mathf.Cos(a0) * perp1 + Mathf.Sin(a0) * perp2) * radius;
+                Vector3 off1 = (Mathf.Cos(a1) * perp1 + Mathf.Sin(a1) * perp2) * radius;
+                Debug.DrawLine(p0 + off0, p0 + off1, color, duration);
+                Debug.DrawLine(p1 + off0, p1 + off1, color, duration);
             }
 
             // -- Hemisphere arcs at p0 (bottom) and p1 (top) --
             // Two perpendicular arcs per hemisphere give a good 3D impression
             const int hemiSegments = 8; // half circle = 8 segments
-            const float hemiStep = math.PI / hemiSegments;
+            const float hemiStep = Mathf.PI / hemiSegments;
 
             for (int i = 0; i < hemiSegments; i++)
             {
@@ -126,23 +125,23 @@ namespace CodexFramework.Utils
                 float a1 = (i + 1) * hemiStep;
 
                 // Arc in the perp1/axis plane — bottom hemisphere goes opposite to axis
-                float3 b0_p1 = (math.cos(a0) * perp1 - math.sin(a0) * axisDir) * radius;
-                float3 b1_p1 = (math.cos(a1) * perp1 - math.sin(a1) * axisDir) * radius;
-                Debug.DrawLine((Vector3)(p0 + b0_p1), (Vector3)(p0 + b1_p1), color, duration);
+                Vector3 b0_p1 = (Mathf.Cos(a0) * perp1 - Mathf.Sin(a0) * axisDir) * radius;
+                Vector3 b1_p1 = (Mathf.Cos(a1) * perp1 - Mathf.Sin(a1) * axisDir) * radius;
+                Debug.DrawLine(p0 + b0_p1, p0 + b1_p1, color, duration);
 
                 // Arc in the perp2/axis plane — bottom hemisphere
-                float3 b0_p2 = (math.cos(a0) * perp2 - math.sin(a0) * axisDir) * radius;
-                float3 b1_p2 = (math.cos(a1) * perp2 - math.sin(a1) * axisDir) * radius;
-                Debug.DrawLine((Vector3)(p0 + b0_p2), (Vector3)(p0 + b1_p2), color, duration);
+                Vector3 b0_p2 = (Mathf.Cos(a0) * perp2 - Mathf.Sin(a0) * axisDir) * radius;
+                Vector3 b1_p2 = (Mathf.Cos(a1) * perp2 - Mathf.Sin(a1) * axisDir) * radius;
+                Debug.DrawLine(p0 + b0_p2, p0 + b1_p2, color, duration);
 
                 // Top hemisphere arcs go along axis direction
-                float3 t0_p1 = (math.cos(a0) * perp1 + math.sin(a0) * axisDir) * radius;
-                float3 t1_p1 = (math.cos(a1) * perp1 + math.sin(a1) * axisDir) * radius;
-                Debug.DrawLine((Vector3)(p1 + t0_p1), (Vector3)(p1 + t1_p1), color, duration);
+                Vector3 t0_p1 = (Mathf.Cos(a0) * perp1 + Mathf.Sin(a0) * axisDir) * radius;
+                Vector3 t1_p1 = (Mathf.Cos(a1) * perp1 + Mathf.Sin(a1) * axisDir) * radius;
+                Debug.DrawLine(p1 + t0_p1, p1 + t1_p1, color, duration);
 
-                float3 t0_p2 = (math.cos(a0) * perp2 + math.sin(a0) * axisDir) * radius;
-                float3 t1_p2 = (math.cos(a1) * perp2 + math.sin(a1) * axisDir) * radius;
-                Debug.DrawLine((Vector3)(p1 + t0_p2), (Vector3)(p1 + t1_p2), color, duration);
+                Vector3 t0_p2 = (Mathf.Cos(a0) * perp2 + Mathf.Sin(a0) * axisDir) * radius;
+                Vector3 t1_p2 = (Mathf.Cos(a1) * perp2 + Mathf.Sin(a1) * axisDir) * radius;
+                Debug.DrawLine(p1 + t0_p2, p1 + t1_p2, color, duration);
             }
         }
     }

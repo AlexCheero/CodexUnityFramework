@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Unity.VisualScripting;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
@@ -166,7 +165,9 @@ namespace CodexFramework.Utils.Pools
         {
             _cachedComponents ??= new Dictionary<Type, Component>();
             var key = typeof(T);
-            _cachedComponents[key] = gameObject.GetOrAddComponent<T>();
+            if (!gameObject.TryGetComponent(out T component))
+                component = gameObject.AddComponent<T>();
+            _cachedComponents[key] = component;
             return _cachedComponents[key] as T;
         }
     }

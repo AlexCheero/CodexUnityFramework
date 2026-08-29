@@ -1,52 +1,43 @@
 using System.Collections.Generic;
 using CodexFramework.Utils;
-using Newtonsoft.Json;
 using UnityEngine;
 
 namespace CodexFramework.Settings
 {
-    public abstract class SettingsManagerBase<TSettings> where TSettings : IGameSettings, new()
+    public abstract class SettingsManagerBase<TSettings, TSerializer>
+        where TSettings : IGameSettings, new()
+        where TSerializer : ISettingsSerializer, new()
     {
-        //TODO: probably should make this local vars
+        private static readonly TSerializer Serializer = new TSerializer();
         private static Dictionary<string, string> _storage;
-        private static JsonSerializerSettings _serializerSettings;
 
         public static TSettings UserSettings;
 
         public static void Load()
         {
-            _serializerSettings = new JsonSerializerSettings
-            {
-                Error = (_, args) =>
-                {
-                    Debug.Log(args.ErrorContext.Error.Message);
-                    args.ErrorContext.Handled = true;
-                }
-            };
-
             UserSettings = new TSettings();
             var meta = UserSettings.Persistence;
             if (PlayerPrefs.HasKey(meta.StorageKey))
             {
-                var json = PlayerPrefs.GetString(meta.StorageKey);
-                _storage = JsonConvert.DeserializeObject<Dictionary<string, string>>(json, _serializerSettings);
+                var serializedStorage = PlayerPrefs.GetString(meta.StorageKey);
+                _storage = Serializer.Deserialize<Dictionary<string, string>>(serializedStorage);
             }
             _storage ??= new Dictionary<string, string>();
 
             if (ShouldWipe(meta))
                 Wipe(meta);
 
-            UserSettings.Load(_storage, _serializerSettings);
+            UserSettings.Load(_storage, Serializer);
         }
 
         public static void Save()
         {
             _storage ??= new Dictionary<string, string>();
-            UserSettings.Save(_storage, _serializerSettings);
+            UserSettings.Save(_storage, Serializer);
 
             var meta = UserSettings.Persistence;
-            var json = JsonConvert.SerializeObject(_storage);
-            PlayerPrefs.SetString(meta.StorageKey, json);
+            var serializedStorage = Serializer.Serialize(_storage);
+            PlayerPrefs.SetString(meta.StorageKey, serializedStorage);
             PlayerPrefs.SetString(meta.VersionKey, Application.version);
             PlayerPrefs.Save();
         }
