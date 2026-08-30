@@ -18,6 +18,8 @@ namespace CodexFramework.Utils.Pools
         private int _firstAvailable = 0;
         private int _allocatedCount;
         private int _minimumCount;
+        private int _growthBatchSize;
+        private float _growthActiveThreshold;
         private bool _isGrowing;
         private bool _isFulfillingAsyncWaiters;
         private bool _itemsDirty;
@@ -64,6 +66,8 @@ namespace CodexFramework.Utils.Pools
                     ThrowIfLeaseWasReleased(item, leaseVersion);
                     item.InvokeOnGetCallbacks();
                     ThrowIfLeaseWasReleased(item, leaseVersion);
+                    GrowAtActiveThreshold();
+                    ThrowIfLeaseWasReleased(item, leaseVersion);
                     return true;
                 }
                 catch
@@ -94,6 +98,8 @@ namespace CodexFramework.Utils.Pools
                 _growPerFrame = 1;
             }
             _minimumCount = _maxCount > 0 ? _maxCount : initialCount;
+            _growthBatchSize = 0;
+            _growthActiveThreshold = 0f;
             _firstAvailable = 0;
             _allocatedCount = 0;
             _growTarget = 0;
@@ -208,6 +214,50 @@ namespace CodexFramework.Utils.Pools
                 ReturnFailedCheckoutIfStillOwned(item, leaseVersion);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Schedules warmup without checking out items, then reserves another batch whenever
+        /// the active fraction reaches the threshold. Both use the normal per-frame grow budget.
+        /// </summary>
+        public void PrewarmWithBatchGrowth(int batchSize, float activeThreshold)
+        {
+            if (batchSize < 1)
+                throw new ArgumentOutOfRangeException(nameof(batchSize));
+            if (!(activeThreshold > 0f && activeThreshold <= 1f))
+                throw new ArgumentOutOfRangeException(nameof(activeThreshold));
+            if (_isDestroying ||
+                _growthBatchSize == batchSize && _growthActiveThreshold == activeThreshold)
+                return;
+
+            RepairDestroyedItemsIfNeeded();
+            // Replace authored startup demand, preserving anything already allocated.
+            // In particular, a prefab's larger initial count must not keep growing after warmup.
+            _minimumCount = Math.Max(_allocatedCount, batchSize);
+            if (_maxCount > 0)
+                _minimumCount = Math.Min(_minimumCount, _maxCount);
+            _growthBatchSize = batchSize;
+            _growthActiveThreshold = activeThreshold;
+            GrowAtActiveThreshold();
+            TryFulfillAsyncWaiters();
+        }
+
+        private void GrowAtActiveThreshold()
+        {
+            if (_growthBatchSize == 0 || _isDestroying)
+                return;
+
+            // Include the batch already being filled so checkouts during async growth do not
+            // reserve another batch against the same occupancy threshold.
+            var committedCount = Math.Max(_minimumCount, _allocatedCount);
+            if (_maxCount > 0 && committedCount >= _maxCount ||
+                _firstAvailable < committedCount * _growthActiveThreshold)
+                return;
+
+            _minimumCount = checked(committedCount + _growthBatchSize);
+            if (_maxCount > 0)
+                _minimumCount = Math.Min(_minimumCount, _maxCount);
+            RequestGrow(_minimumCount);
         }
 
         public void AllocateAll()

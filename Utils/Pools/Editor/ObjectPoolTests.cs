@@ -23,6 +23,8 @@ namespace CodexFramework.Utils.Pools.Editor
         public bool ObserveOnEnable { get; set; }
         public bool ObservedInPoolOnEnable { get; private set; }
         public int EnableObservationCount { get; private set; }
+        public int GetCount { get; private set; }
+        public int ReturnCount { get; private set; }
         public bool ReturnDuringGet { get; set; }
         public bool ThrowDuringGet { get; set; }
         public bool TryGetDuringReturn { get; set; }
@@ -49,6 +51,7 @@ namespace CodexFramework.Utils.Pools.Editor
 
         public void OnGet()
         {
+            GetCount++;
             if (ReturnDuringGet)
                 Item.ReturnToPool();
             if (ThrowDuringGet)
@@ -57,6 +60,7 @@ namespace CodexFramework.Utils.Pools.Editor
 
         public void OnReturn()
         {
+            ReturnCount++;
             if (TryGetDuringReturn)
                 GetDuringReturnResult = Item.Pool.Get(false);
             if (DestroyDuringReturn)
@@ -131,6 +135,264 @@ namespace CodexFramework.Utils.Pools.Editor
 
             Assert.AreEqual(2, pool.Allocated);
             Assert.AreEqual(2, pool.GrowTarget);
+        }
+
+        [UnityTest]
+        public IEnumerator BatchPrewarm_UsesFrameBudgetWithoutCheckingOutOrReturningItems()
+        {
+            var pool = CreatePool(128, -1, 1,
+                item => item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
+            Assert.AreEqual(2, pool.Allocated);
+
+            pool.PrewarmWithBatchGrowth(32, 0.75f);
+
+            Assert.AreEqual(2, pool.Allocated,
+                "Warmup must not spend the same frame's growth budget a second time.");
+            Assert.AreEqual(32, pool.GrowTarget);
+            Assert.AreEqual(0, pool.ActiveCount);
+            Assert.AreEqual(0, pool.PendingAsyncCount);
+
+            yield return WaitForAllocation(pool, 32, 1);
+
+            Assert.AreEqual(32, pool.AvailableCount);
+            Assert.AreEqual(0, pool.PendingAsyncCount);
+            for (var i = 0; i < pool.Allocated; i++)
+            {
+                var item = pool.Items[i];
+                var probe = item.GetComponent<ObjectPoolLifecycleProbe>();
+                Assert.IsTrue(item.IsInPool, $"item {i}");
+                Assert.IsFalse(item.gameObject.activeSelf, $"item {i}");
+                Assert.AreEqual(0, probe.GetCount, $"item {i} checkout callbacks");
+                Assert.AreEqual(0, probe.ReturnCount, $"item {i} return callbacks");
+            }
+
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(32, pool.Allocated,
+                "Pending initial growth must not resume toward the prefab's old authored count.");
+            Assert.AreEqual(32, pool.GrowTarget);
+        }
+
+        [UnityTest]
+        public IEnumerator BatchGrowth_SchedulesThirtyTwoAtEachSeventyFivePercentBoundary()
+        {
+            var thresholds = new[] { 24, 48, 72 };
+            var allocations = new[] { 32, 64, 96, 128 };
+            foreach (var checkoutApi in new[] { "TryGet", "Get", "GetAsync" })
+            {
+                var pool = CreatePool(32, -1, 8);
+                pool.PrewarmWithBatchGrowth(32, 0.75f);
+                yield return WaitForAllocation(pool, 32, 8);
+                for (var boundary = 0; boundary < thresholds.Length; boundary++)
+                {
+                    while (pool.ActiveCount < thresholds[boundary] - 1)
+                        Assert.NotNull(CheckoutWithApi(pool, checkoutApi));
+                    Assert.AreEqual(allocations[boundary], pool.GrowTarget,
+                        $"{checkoutApi} scheduled growth before boundary {thresholds[boundary]}.");
+
+                    Assert.NotNull(CheckoutWithApi(pool, checkoutApi));
+
+                    Assert.AreEqual(thresholds[boundary], pool.ActiveCount);
+                    Assert.AreEqual(allocations[boundary + 1], pool.GrowTarget,
+                        $"{checkoutApi} must schedule the next batch on boundary {thresholds[boundary]}.");
+                    Assert.That(pool.Allocated, Is.InRange(allocations[boundary], allocations[boundary] + 8),
+                        "Threshold growth must respect the normal frame budget.");
+                    Assert.AreEqual(0, pool.PendingAsyncCount);
+                    yield return WaitForAllocation(pool, allocations[boundary + 1], 8);
+                }
+                Object.DestroyImmediate(_poolRoot);
+                _poolRoot = null;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator BatchPrewarm_FulfillsAlreadyQueuedRequestsExactlyOnce()
+        {
+            var pool = CreatePool(2, -1, 1);
+            Assert.NotNull(pool.Get());
+            Assert.NotNull(pool.Get());
+            var results = new PoolItem[3];
+            var callbackCounts = new int[results.Length];
+            for (var i = 0; i < results.Length; i++)
+            {
+                var requestIndex = i;
+                pool.GetAsync(item =>
+                {
+                    results[requestIndex] = item;
+                    callbackCounts[requestIndex]++;
+                });
+            }
+            Assert.AreEqual(results.Length, pool.PendingAsyncCount);
+            Assert.AreEqual(2, pool.Allocated,
+                "The existing grow loop must retain its frame budget while these requests queue.");
+
+            pool.PrewarmWithBatchGrowth(32, 0.75f);
+
+            Assert.AreEqual(2, pool.Allocated);
+            Assert.AreEqual(results.Length, pool.PendingAsyncCount);
+            Assert.AreEqual(32, pool.GrowTarget);
+
+            yield return WaitForAllocation(pool, 32, 1);
+
+            Assert.AreEqual(2 + results.Length, pool.ActiveCount);
+            Assert.AreEqual(0, pool.PendingAsyncCount);
+            var distinctItems = new HashSet<PoolItem>();
+            for (var i = 0; i < results.Length; i++)
+            {
+                Assert.AreEqual(1, callbackCounts[i], $"request {i}");
+                Assert.NotNull(results[i], $"request {i}");
+                Assert.IsTrue(distinctItems.Add(results[i]), $"request {i} repeated another lease");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator BatchPrewarm_InFlightLeasesAndReturnsPreserveCommittedBatches()
+        {
+            var pool = CreatePool(32, -1, 4);
+            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            Assert.AreEqual(5, pool.Allocated);
+            Assert.AreEqual(32, pool.GrowTarget);
+            var leased = new List<PoolItem>();
+            while (pool.TryGet(out var initialItem))
+                leased.Add(initialItem);
+            Assert.AreEqual(32, pool.GrowTarget,
+                "Occupancy of a partially filled pool must be measured against its committed batch.");
+            foreach (var item in leased)
+                item.ReturnToPool();
+            leased.Clear();
+
+            yield return WaitForAllocation(pool, 32, 4);
+
+            for (var i = 0; i < 24; i++)
+                leased.Add(pool.Get());
+            Assert.AreEqual(64, pool.GrowTarget);
+            Assert.Less(pool.Allocated, 64);
+            var availableWhileGrowing = pool.AvailableCount;
+            for (var i = 0; i < availableWhileGrowing; i++)
+            {
+                Assert.IsTrue(pool.TryGet(out var item));
+                leased.Add(item);
+            }
+            Assert.AreEqual(64, pool.GrowTarget,
+                "Checkouts while the batch fills must not reserve a duplicate batch.");
+
+#if CODEX_UNITASK_SUPPORT
+            using var cancellation = new CancellationTokenSource();
+            var canceledCallbackCount = 0;
+            pool.GetAsync(_ => canceledCallbackCount++, cancellation.Token);
+            Assert.AreEqual(1, pool.PendingAsyncCount);
+            cancellation.Cancel();
+#endif
+
+            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            foreach (var item in leased)
+                item.ReturnToPool();
+            pool.PrewarmWithBatchGrowth(32, 0.75f);
+
+            Assert.AreEqual(64, pool.GrowTarget,
+                "Returning leases or canceling demand must not erase the promised refill batch.");
+            Assert.AreEqual(0, pool.ActiveCount);
+
+            yield return WaitForAllocation(pool, 64, 4);
+
+#if CODEX_UNITASK_SUPPORT
+            Assert.AreEqual(0, canceledCallbackCount);
+            Assert.AreEqual(0, pool.PendingAsyncCount);
+#endif
+            Assert.AreEqual(64, pool.AvailableCount);
+            for (var i = 0; i < 24; i++)
+                Assert.NotNull(pool.Get());
+            Assert.AreEqual(64, pool.Allocated,
+                "Reusing returned items below the new threshold must not repeat the previous batch.");
+            Assert.AreEqual(24, pool.ActiveCount);
+        }
+
+        [UnityTest]
+        public IEnumerator BatchGrowth_DoesNotChangeOtherPoolsDemandBasedGrowth()
+        {
+            var warmedPool = CreatePool(32, -1, 8);
+            var ordinaryPool = CreatePool(32, -1, 256);
+            warmedPool.transform.SetParent(ordinaryPool.transform);
+            warmedPool.PrewarmWithBatchGrowth(32, 0.75f);
+
+            yield return WaitForAllocation(warmedPool, 32, 8);
+
+            for (var i = 0; i < 24; i++)
+            {
+                Assert.NotNull(warmedPool.Get());
+                Assert.NotNull(ordinaryPool.Get());
+            }
+
+            Assert.AreEqual(64, warmedPool.GrowTarget);
+            Assert.Less(warmedPool.Allocated, 64);
+
+            yield return WaitForAllocation(warmedPool, 64, 8);
+
+            Assert.AreEqual(32, ordinaryPool.Allocated);
+            Assert.AreEqual(32, ordinaryPool.GrowTarget);
+            Assert.AreEqual(24, ordinaryPool.ActiveCount);
+        }
+
+        [UnityTest]
+        public IEnumerator BatchGrowth_RespectsFixedPoolMaximum()
+        {
+            foreach (var maximum in new[] { 16, 40 })
+            {
+                var pool = CreatePool(1, maximum, 4);
+                pool.PrewarmWithBatchGrowth(32, 0.75f);
+                Assert.AreEqual(5, pool.Allocated);
+
+                yield return WaitForAllocation(pool, Math.Min(32, maximum), 4);
+
+                for (var i = 0; i < Math.Min(24, maximum); i++)
+                    Assert.NotNull(pool.Get());
+                Assert.AreEqual(maximum, pool.GrowTarget);
+
+                yield return WaitForAllocation(pool, maximum, 4);
+
+                for (var i = 0; i < maximum + 1; i++)
+                    Assert.NotNull(pool.Get());
+                PoolItem asyncResult = null;
+                pool.GetAsync(item => asyncResult = item);
+
+                Assert.NotNull(asyncResult);
+                Assert.AreEqual(maximum, pool.Allocated);
+                Assert.AreEqual(maximum, pool.ActiveCount);
+                Assert.AreEqual(maximum, pool.Capacity);
+                Assert.AreEqual(0, pool.PendingAsyncCount);
+                Object.DestroyImmediate(_poolRoot);
+                _poolRoot = null;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator BatchGrowth_FailedCheckoutDoesNotCrossActiveThreshold()
+        {
+            var pool = CreatePool(32, -1, 8,
+                item => item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
+            pool.PrewarmWithBatchGrowth(32, 0.75f);
+
+            yield return WaitForAllocation(pool, 32, 8);
+
+            for (var i = 0; i < 23; i++)
+                Assert.NotNull(pool.Get());
+            var failingProbe = pool.Items[23].GetComponent<ObjectPoolLifecycleProbe>();
+            failingProbe.ThrowDuringGet = true;
+
+            Assert.Throws<InvalidOperationException>(() => pool.Get());
+
+            Assert.AreEqual(23, pool.ActiveCount);
+            Assert.AreEqual(32, pool.Allocated);
+            Assert.AreEqual(32, pool.GrowTarget);
+            failingProbe.ThrowDuringGet = false;
+            Assert.NotNull(pool.Get());
+            Assert.AreEqual(24, pool.ActiveCount);
+            Assert.AreEqual(64, pool.GrowTarget);
+            Assert.Less(pool.Allocated, 64);
+
+            yield return WaitForAllocation(pool, 64, 8);
         }
 
         [Test]
@@ -588,6 +850,46 @@ namespace CodexFramework.Utils.Pools.Editor
 
             for (var i = 0; i < invocationCounts.Length; i++)
                 Assert.AreEqual(1, invocationCounts[i], $"late callback for request {i}");
+        }
+
+        private static IEnumerator WaitForAllocation(ObjectPool pool, int target, int growPerFrame)
+        {
+            const int maximumFrames = 160;
+            for (var frame = 0; pool.Allocated < target && frame < maximumFrames; frame++)
+            {
+                var allocatedBeforeFrame = pool.Allocated;
+                yield return null;
+                // EditMode iterator yields can span multiple allocator updates; PlayMode
+                // resumes once per game frame and can verify the actual allocation budget.
+                if (Application.isPlaying)
+                    Assert.That(pool.Allocated - allocatedBeforeFrame, Is.InRange(0, growPerFrame),
+                        "Async growth exceeded the configured allocation budget in one frame.");
+            }
+            Assert.AreEqual(target, pool.Allocated, "Async pool growth did not finish its promised batch.");
+        }
+
+        private static PoolItem CheckoutWithApi(ObjectPool pool, string checkoutApi)
+        {
+            switch (checkoutApi)
+            {
+                case "TryGet":
+                    Assert.IsTrue(pool.TryGet(out var item));
+                    return item;
+                case "Get":
+                    return pool.Get();
+                case "GetAsync":
+                    PoolItem result = null;
+                    var callbackCount = 0;
+                    pool.GetAsync(ready =>
+                    {
+                        result = ready;
+                        callbackCount++;
+                    });
+                    Assert.AreEqual(1, callbackCount);
+                    return result;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(checkoutApi), checkoutApi, null);
+            }
         }
 
         private ObjectPool CreatePool(
