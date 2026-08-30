@@ -11,16 +11,10 @@ namespace CodexFramework.Utils.Pools
         
         public void OnGet()
         {
-            _rigidbody.velocity = _rigidbody.angularVelocity = Vector3.zero;
-            _rigidbody.ResetInertiaTensor();
             _rigidbody.isKinematic = false;
-            _rigidbody.WakeUp();
+            _rigidbody.linearVelocity = _rigidbody.angularVelocity = Vector3.zero;
         }
 
-        public void OnReturn()
-        {
-            _rigidbody.isKinematic = true;
-            _rigidbody.Sleep();
-        }
+        public void OnReturn() => _rigidbody.isKinematic = true;
     }
 }

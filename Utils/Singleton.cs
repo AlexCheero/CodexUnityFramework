@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace CodexFramework.Utils
@@ -7,34 +8,46 @@ namespace CodexFramework.Utils
         [SerializeField]
         private bool _dontDestroyOnLoad;
 
-        public static void ForceInit()
-        {
-            if (_instance != null)
-                return;
-            
-            var singleton = FindObjectOfType<Singleton<T>>(true);
-            if (singleton != null)
-                singleton.Awake();
-        }
-
         private static T _instance;
         public static T Instance
         {
             get
             {
-                if (_instance == null)
-                {
-                    Debug.LogWarning(typeof(T).Name + " instance not found, creating new one!");
-                    _instance = new GameObject(typeof(T).Name).AddComponent<T>();
-                }
+                if (_instance != null)
+                    return _instance;
+                var instance = FindFirstObjectByType<T>(FindObjectsInactive.Include);
+                if (instance == null)
+                    instance = new GameObject(typeof(T).Name).AddComponent<T>();
+                InitInstance(instance);
                 return _instance;
             }
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected static DT InstanceAs<DT>() where DT : T
+        {
+#if DEBUG
+            if (Instance is not DT)
+                Debug.LogError("WrongType");
+#endif
+            return (DT)Instance;
+        }
+
+        private static void InitInstance(T instance)
+        {
+            var singleton = instance as Singleton<T>;
+            if (singleton._dontDestroyOnLoad)
+                DontDestroyOnLoad(singleton.gameObject);
+            _instance = instance;
+            singleton.Init();
         }
 
         public static bool IsCreated => _instance != null;
 
         void Awake()
         {
+            if (_instance == this)
+                return;
             if (_instance != null)
             {
                 if (_instance.gameObject.scene.buildIndex != -1)
@@ -42,21 +55,19 @@ namespace CodexFramework.Utils
                 Destroy(this);
                 return;
             }
-
-            if (_dontDestroyOnLoad)
-                DontDestroyOnLoad(gameObject);
-
-            _instance = this as T;
-
-            Init();
+            
+            InitInstance(this as T);
         }
 
         protected virtual void Init() { }
 
-        void OnDestroy()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected void ClearSingletonInstance()
         {
             if (this == _instance)
                 _instance = null;
         }
+
+        void OnDestroy() => ClearSingletonInstance();
     }
 }

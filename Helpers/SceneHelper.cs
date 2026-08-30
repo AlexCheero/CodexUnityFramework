@@ -1,31 +1,63 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using CodexFramework.CodexEcsUnityIntegration;
 using CodexFramework.Gameplay.UI;
-using System.Collections;
+using CodexFramework.Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace CodexFramework.Helpers
+namespace CodexFramework.Scenes
 {
-    public static class SceneHelper
+    [Serializable]
+    public struct SceneEntry
+    {
+        public string ScenePath;
+    }
+
+    public sealed class SceneEntryComparer : IEqualityComparer<SceneEntry>
+    {
+        public static readonly SceneEntryComparer Instance = new();
+
+        public bool Equals(SceneEntry x, SceneEntry y) => x.ScenePath == y.ScenePath;
+
+        public int GetHashCode(SceneEntry obj) =>
+            obj.ScenePath != null ? obj.ScenePath.GetHashCode() : 0;
+    }
+    
+    public static partial class SceneHelper
     {
         private const float _minLoadTime = 0.0f;
 
-        public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().name);
+        // Cross-assembly extension point: other projects can subscribe to these.
+        public static event Action<string> SceneLoadStarted;
+        public static event Action<string> SceneLoadCompleted;
+
+        // In-assembly extension point (compile-time, zero cost if unimplemented).
+        static partial void OnSceneLoadStarted(string name);
+        static partial void OnSceneLoadCompleted(string name);
+
+        public static void ResetScene() => LoadScene(SceneManager.GetActiveScene().path);
 
         private static bool _loadStarted;
+
+        public static void LoadScene(SceneEntry scene, LoadSceneMode loadMode = LoadSceneMode.Single,
+            Action<string> onLoadComplete = null)
+        {
+            LoadScene(scene.ScenePath, loadMode, onLoadComplete);
+        }
+        
         public static void LoadScene(string name, LoadSceneMode loadMode = LoadSceneMode.Single, Action<string> onLoadComplete = null)
         {
             if (_loadStarted)
                 return;
             
             _loadStarted = true;
-            CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime, loadMode, onLoadComplete));
 
-            //AdsManager.Instance.ShowInter(() =>
-            //{
-            //    CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime));
-            //});
+            OnSceneLoadStarted(name);
+            SceneLoadStarted?.Invoke(name);
+
+            CoroutineRunner.Instance.StartCoroutine(LoadSceneRoutine(name, _minLoadTime, loadMode, onLoadComplete));
         }
 
         private static IEnumerator LoadSceneRoutine(string levelName, float minLoadTime,
@@ -50,8 +82,12 @@ namespace CodexFramework.Helpers
             {
                 _loadStarted = false;
                 onLoadComplete?.Invoke(levelName);
-                Time.timeScale = 1.0f;//restore time scale on load new scene
+                OnSceneLoadCompleted(levelName);
+                SceneLoadCompleted?.Invoke(levelName);
+                Time.timeScale = 1.0f;
             };
         }
+
+        public static bool IsSceneLoaded(string name) => SceneManager.GetSceneByName(name).isLoaded;
     }
 }

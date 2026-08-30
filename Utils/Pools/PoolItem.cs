@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
@@ -25,10 +25,19 @@ namespace CodexFramework.Utils.Pools
     {
         [SerializeField]
         private int _initialCount = 2;
+        [SerializeField]
+        private int _maxCount = -1;
+        [SerializeField]
+        private int _growPerFrame = 1;
+        
         public int InitialCount => _initialCount;
+        public int MaxCount => _maxCount;
+        public int GrowPerFrame => _growPerFrame;
         
         [SerializeField]
         private ObjectPool _pool;
+        public ObjectPool Pool => _pool;
+        
         [SerializeField]
         private int _idx;
 
@@ -37,7 +46,20 @@ namespace CodexFramework.Utils.Pools
         private IResetOnGetPoolableBehaviour[] _getPoolableBehaviours;
         private IResetOnReturnPoolableBehaviour[] _returnPoolableBehaviours;
 
-        public int Idx => _idx;
+        public int Idx
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _idx;
+        }
+
+        private bool _isInPool;
+        private bool _isReturning;
+        private int _leaseVersion;
+        public bool IsInPool
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _isInPool;
+        }
 
         public void OnCreate()
         {
@@ -47,38 +69,78 @@ namespace CodexFramework.Utils.Pools
         
         public void AddToPool(ObjectPool pool, int idx)
         {
+            SetPoolIndex(pool, idx);
+            _isReturning = false;
+            _isInPool = true;
+        }
+
+        internal void SetPoolIndex(ObjectPool pool, int idx)
+        {
             _pool = pool;
             _idx = idx;
         }
 
-        public void OnGetFromPool()
+        internal int MarkCheckedOut()
+        {
+            _isReturning = false;
+            _isInPool = false;
+            _leaseVersion = unchecked(_leaseVersion + 1);
+            return _leaseVersion;
+        }
+
+        internal int LeaseVersion => _leaseVersion;
+        internal bool IsReturning => _isReturning;
+
+        internal void InvokeOnGetCallbacks()
         {
             for (var i = 0; i < _getPoolableBehaviours.Length; i++)
                 _getPoolableBehaviours[i].OnGet();
         }
 
-        public void ReturnToPool()
+        public void OnGetFromPool()
         {
-            StopAllCoroutines();
-            _pool.ReturnItem(this);
-            
+            MarkCheckedOut();
+            InvokeOnGetCallbacks();
+        }
+
+        public void ReturnToPool() => _pool.ReturnItem(this);
+
+        internal void MarkReturning()
+        {
+            _isReturning = true;
+            _isInPool = true;
+        }
+
+        internal void MarkReturned()
+        {
+            _isReturning = false;
+            _isInPool = true;
+        }
+
+        internal void InvokeOnReturnCallbacks()
+        {
             for (var i = 0; i < _returnPoolableBehaviours.Length; i++)
                 _returnPoolableBehaviours[i].OnReturn();
         }
 
-        private bool _isDelayedReturning;
-        public void DelayedReturnToPool(float delay)
+        //TODO: bad design- OnReturn is called from ObjectPool.ReturnItem
+        public void OnReturn()
         {
-            if (!_isDelayedReturning)
-                StartCoroutine(DelayedReturnToPoolRoutine(delay));
+            MarkReturning();
+            try
+            {
+                InvokeOnReturnCallbacks();
+            }
+            finally
+            {
+                MarkReturned();
+            }
         }
 
-        private IEnumerator DelayedReturnToPoolRoutine(float delay)
+        private void OnDestroy()
         {
-            _isDelayedReturning = true;
-            yield return new WaitForSeconds(delay);
-            ReturnToPool();
-            _isDelayedReturning = false;
+            if (_pool)
+                _pool.NotifyItemDestroyed();
         }
 
         public T[] GetAllComponentsInChildrenAndCache<T>(bool includeInactive = false) where T : Component
@@ -103,7 +165,9 @@ namespace CodexFramework.Utils.Pools
         {
             _cachedComponents ??= new Dictionary<Type, Component>();
             var key = typeof(T);
-            _cachedComponents[key] = gameObject.GetOrAddComponent<T>();
+            if (!gameObject.TryGetComponent(out T component))
+                component = gameObject.AddComponent<T>();
+            _cachedComponents[key] = component;
             return _cachedComponents[key] as T;
         }
     }

@@ -1,3 +1,4 @@
+#if CODEX_TEMPLATES //nonexistent define. copy this to use as a template for production code
 using System;
 using CodexFramework.Utils;
 
@@ -27,3 +28,4 @@ namespace CodexFramework.Templates
         }
     }
 }
+#endif

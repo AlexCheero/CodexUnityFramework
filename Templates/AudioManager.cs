@@ -1,4 +1,5 @@
-﻿using CodexFramework.Utils;
+﻿#if CODEX_TEMPLATES //nonexistent define. copy this to use as a template for production code
+using CodexFramework.Utils;
 using UnityEngine;
 using UnityEngine.Audio;
 
@@ -60,3 +61,4 @@ namespace CodexFramework.Templates
         }
     }
 }
+#endif
