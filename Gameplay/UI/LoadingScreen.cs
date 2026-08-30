@@ -19,14 +19,29 @@ namespace CodexFramework.Gameplay.UI
 
     public class LoadingScreen : Singleton<LoadingScreen>
     {
+        [Header("Loading status")]
         [SerializeField]
         private MonoBehaviour _loadingText;
-        [SerializeField]
+        [SerializeField, Min(0.05f)]
         private float _loadingAnimationDelay = 0.5f;
         [SerializeField]
+        private Image _progressBar;
+        [SerializeField]
+        private MonoBehaviour _progressText;
+        [Header("Backgrounds")]
+        [SerializeField]
+        private Image _backgroundImage;
+        [SerializeField, Min(0.05f)]
         private float _loadingChangeBGDelay = 3.0f;
         [SerializeField]
-        private Sprite[] _bgSprites;
+        private Sprite[] _bgSprites = Array.Empty<Sprite>();
+        [Header("Tooltips")]
+        [SerializeField]
+        private MonoBehaviour _tooltipText;
+        [SerializeField, TextArea(2, 4)]
+        private string[] _tooltipTexts = Array.Empty<string>();
+        [SerializeField, Min(0.05f)]
+        private float _tooltipChangeDelay = 5.0f;
 
         private Image _bg;
 
@@ -36,50 +51,153 @@ namespace CodexFramework.Gameplay.UI
         private int _currentDotsCount;
         private float _loadingAnimationCD;
         private float _loadingChangeBGCD;
-        private int _currentBgSpriteIdx;
+        private float _tooltipChangeCD;
+        private int _currentBgSpriteIdx = -1;
+        private int _currentTooltipIdx = -1;
         private ILoadingScreenText _loadingTextAccessor;
+        private ILoadingScreenText _tooltipTextAccessor;
+        private ILoadingScreenText _progressTextAccessor;
+        private readonly System.Random _random = new System.Random();
+        private bool _initialized;
+        private bool _failed;
 
-        void Awake()
+        public float Progress { get; private set; }
+
+        protected override void Init()
         {
-            _bg = GetComponent<Image>();
-            _bg.sprite = _bgSprites[0];
+            base.Init();
+            EnsureInitialized();
+        }
 
-            _loadingTextAccessor = ResolveLoadingText(_loadingText);
-            _initialLoadingString = _loadingTextAccessor.Text;
+        private void EnsureInitialized()
+        {
+            if (_initialized)
+                return;
+            _initialized = true;
+            _bg = _backgroundImage != null ? _backgroundImage : GetComponent<Image>();
+            _loadingTextAccessor = _loadingText != null ? ResolveLoadingText(_loadingText) : null;
+            _tooltipTextAccessor = _tooltipText != null ? ResolveLoadingText(_tooltipText) : null;
+            _progressTextAccessor = _progressText != null ? ResolveLoadingText(_progressText) : null;
+            _initialLoadingString = _loadingTextAccessor?.Text ?? "Loading";
             _loadingStringBuilder = new StringBuilder();
+        }
 
+        private void OnEnable() => BeginLoading();
+
+        public void Show()
+        {
+            transform.SetAsLastSibling();
+            if (gameObject.activeSelf)
+                BeginLoading();
+            else
+                gameObject.SetActive(true);
+        }
+
+        public void Hide() => gameObject.SetActive(false);
+
+        private void BeginLoading()
+        {
+            EnsureInitialized();
+            _failed = false;
+            _currentDotsCount = 0;
+            if (_loadingTextAccessor != null)
+                _loadingTextAccessor.Text = _initialLoadingString;
+            Progress = 0f;
+            SetProgress(0f);
             _loadingAnimationCD = _loadingAnimationDelay;
             _loadingChangeBGCD = _loadingChangeBGDelay;
+            _tooltipChangeCD = _tooltipChangeDelay;
+            ChangeBackground();
+            ChangeTooltip();
+        }
+
+        public void SetProgress(float value)
+        {
+            EnsureInitialized();
+            if (float.IsNaN(value))
+                return;
+            Progress = Mathf.Max(Progress, Mathf.Clamp01(value));
+            if (_progressBar != null)
+            {
+                // Stretch the fill inside its track; a sprite-less Image works too.
+                var fill = _progressBar.rectTransform;
+                fill.anchorMax = new Vector2(Progress, fill.anchorMax.y);
+            }
+            if (_progressTextAccessor != null)
+                _progressTextAccessor.Text = $"{Mathf.FloorToInt(Progress * 100f)}%";
+        }
+
+        public void ShowFailure(string message)
+        {
+            EnsureInitialized();
+            _failed = true;
+            if (_loadingTextAccessor != null)
+                _loadingTextAccessor.Text = message;
         }
 
         void Update()
         {
-            _loadingAnimationCD -= Time.deltaTime;
-            _loadingChangeBGCD -= Time.deltaTime;
+            _loadingAnimationCD -= Time.unscaledDeltaTime;
+            _loadingChangeBGCD -= Time.unscaledDeltaTime;
+            _tooltipChangeCD -= Time.unscaledDeltaTime;
 
-            if (_loadingAnimationCD <= 0)
+            if (!_failed && _loadingAnimationCD <= 0)
             {
                 AnimateText();
-                _loadingAnimationCD = _loadingAnimationDelay;
+                _loadingAnimationCD = Mathf.Max(0.05f, _loadingAnimationDelay);
             }
 
-            if (_loadingChangeBGCD <= 0 && _bgSprites.Length > 0)
+            if (_loadingChangeBGCD <= 0)
             {
-                var bgSpriteIdx = UnityEngine.Random.Range(0, _bgSprites.Length);
-                if (bgSpriteIdx == _currentBgSpriteIdx)
-                {
-                    bgSpriteIdx++;
-                    bgSpriteIdx %= _bgSprites.Length;
-                    _currentBgSpriteIdx = bgSpriteIdx;
-                }
-
-                _bg.sprite = _bgSprites[_currentBgSpriteIdx];
-                _loadingChangeBGCD = _loadingChangeBGDelay;
+                ChangeBackground();
+                _loadingChangeBGCD = Mathf.Max(0.05f, _loadingChangeBGDelay);
             }
+            if (_tooltipChangeCD <= 0)
+            {
+                ChangeTooltip();
+                _tooltipChangeCD = Mathf.Max(0.05f, _tooltipChangeDelay);
+            }
+        }
+
+        private void ChangeBackground()
+        {
+            if (_bg == null)
+                return;
+            _currentBgSpriteIdx = NextIndex(_bgSprites, _currentBgSpriteIdx, sprite => sprite != null);
+            if (_currentBgSpriteIdx >= 0)
+                _bg.sprite = _bgSprites[_currentBgSpriteIdx];
+        }
+
+        private void ChangeTooltip()
+        {
+            if (_tooltipTextAccessor == null)
+                return;
+            _currentTooltipIdx = NextIndex(_tooltipTexts, _currentTooltipIdx,
+                text => !string.IsNullOrWhiteSpace(text));
+            _tooltipTextAccessor.Text = _currentTooltipIdx >= 0 ? _tooltipTexts[_currentTooltipIdx] : string.Empty;
+        }
+
+        private int NextIndex<T>(T[] entries, int current, Func<T, bool> isValid)
+        {
+            if (entries == null || entries.Length == 0)
+                return -1;
+            var selected = -1;
+            var candidates = 0;
+            for (var i = 0; i < entries.Length; i++)
+            {
+                if (i == current || !isValid(entries[i]))
+                    continue;
+                if (_random.Next(++candidates) == 0)
+                    selected = i;
+            }
+            return selected >= 0 ? selected :
+                current >= 0 && current < entries.Length && isValid(entries[current]) ? current : -1;
         }
 
         private void AnimateText()
         {
+            if (_loadingTextAccessor == null)
+                return;
             _loadingStringBuilder.Clear();
             _loadingStringBuilder.Append(_initialLoadingString);
             _currentDotsCount++;
