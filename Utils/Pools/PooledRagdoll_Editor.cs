@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR
+#if UNITY_EDITOR
 using System.Collections.Generic;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -116,6 +116,9 @@ namespace CodexFramework.Utils.Pools
 
         private void CacheBoneRenderers()
         {
+            // A single-body character has no detachable joints to cache meshes on.
+            if (_jointsCache.Length == 0)
+                return;
             var renderers = GetComponentsInChildren<MeshRenderer>(true);
             var counts = new int[_jointsCache.Length];
             for (var i = 0; i < renderers.Length; i++)
@@ -262,6 +265,7 @@ namespace CodexFramework.Utils.Pools
 
         private bool CheckRenderers()
         {
+            if (_jointsCache.Length == 0) return true;
             var cached = new HashSet<MeshRenderer>();
             for (var i = 0; i < _jointsCache.Length; i++)
             {
