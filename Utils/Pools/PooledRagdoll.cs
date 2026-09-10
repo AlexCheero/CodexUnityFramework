@@ -129,6 +129,17 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
+        /// <summary>Adds scaled source character velocity to every simulated part, preserving other impulses.</summary>
+        public void AddInheritedVelocity(Vector3 velocity, float multiplier = 0.75f)
+        {
+            for (var i = 0; i < _rigidbodies.Length; i++)
+            {
+                var rb = _rigidbodies[i];
+                if (!rb.isKinematic)
+                    rb.AddForce(velocity * multiplier, ForceMode.VelocityChange);
+            }
+        }
+
         public void OnReturn()
         {
             RestorePhysicsAfterCorpseBakeSuspension();
