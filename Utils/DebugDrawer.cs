@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace CodexFramework.Utils
@@ -80,6 +81,9 @@ namespace CodexFramework.Utils
             Debug.DrawLine(nextPos, nextPos - Vector3.forward*dimensions.z, color, duration);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DrawCapsule(Vector3 p0, Vector3 p1, float radius, Color color, float duration = 0f) =>
+            DrawCapsule(p0, p1, radius, color, Vector3.up, duration);
         public static void DrawCapsule(Vector3 p0, Vector3 p1, float radius, Color color, Vector3 up, float duration = 0f)
         {
             Vector3 axis = p1 - p0;
