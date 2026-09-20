@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -73,6 +73,9 @@ namespace CodexFramework.Utils.Pools
         private bool[] _corpseBakeWasKinematic;
         private bool[] _corpseBakeDetectedCollisions;
         private bool[] _corpseBakeColliderEnabled;
+
+        public event Action BeforePhysicsSuspension;
+        public event Action BeforeJointsDisconnected;
 
         public bool IsPhysicsSuspendedForCorpseBake => _corpseBakePhysicsSuspended;
 
@@ -159,6 +162,7 @@ namespace CodexFramework.Utils.Pools
             if (_corpseBakePhysicsSuspended)
                 return;
 
+            BeforePhysicsSuspension?.Invoke();
             EnsureCorpseBakePhysicsCache();
             for (var i = 0; i < _corpseBakeColliders.Count; i++)
             {
@@ -294,6 +298,7 @@ namespace CodexFramework.Utils.Pools
             if (available == 0)
                 return 0;
 
+            BeforeJointsDisconnected?.Invoke();
             var maxBreaks = Mathf.Max(DismemberMinJoints, Mathf.FloorToInt(available * DismemberMaxJointFraction));
             var breakCount = available < DismemberMinJoints
                 ? available
