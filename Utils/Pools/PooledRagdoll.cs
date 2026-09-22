@@ -42,7 +42,6 @@ namespace CodexFramework.Utils.Pools
         {
             public CharacterJoint Joint;
             public Rigidbody ConnectedBody;
-            public MeshRenderer[] Renderers;
         }
 
         [SerializeField, HideInInspector]
@@ -61,8 +60,6 @@ namespace CodexFramework.Utils.Pools
         private bool _pendingReturnReset;
         private readonly List<Rigidbody> _borrowedDismemberDummies = new(4);
         private static readonly List<int> DisconnectCandidates = new(32);
-        private static readonly int RagdollDitherOpacityId = Shader.PropertyToID("_RagdollDitherOpacity");
-        private static MaterialPropertyBlock VisualPropertyBlock;
 
         private Vector3 _pooledLocalScale;
         private bool _visualStateCached;
@@ -74,14 +71,10 @@ namespace CodexFramework.Utils.Pools
         private bool[] _corpseBakeDetectedCollisions;
         private bool[] _corpseBakeColliderEnabled;
 
-        public event Action BeforePhysicsSuspension;
-        public event Action BeforeJointsDisconnected;
-
         public bool IsPhysicsSuspendedForCorpseBake => _corpseBakePhysicsSuspended;
 
         private void Awake()
         {
-            VisualPropertyBlock ??= new MaterialPropertyBlock();
             _pooledLocalScale = transform.localScale;
             _visualStateCached = true;
         }
@@ -91,19 +84,6 @@ namespace CodexFramework.Utils.Pools
             if (!_visualStateCached)
                 throw new InvalidOperationException("PooledRagdoll visual state was not initialized by Awake.");
             transform.localScale = _pooledLocalScale;
-            for (var i = 0; i < _jointsCache.Length; i++)
-            {
-                var renderers = _jointsCache[i].Renderers;
-                for (var j = 0; j < renderers.Length; j++)
-                    ResetDither(renderers[j]);
-            }
-        }
-
-        private static void ResetDither(MeshRenderer renderer)
-        {
-            renderer.GetPropertyBlock(VisualPropertyBlock);
-            VisualPropertyBlock.SetFloat(RagdollDitherOpacityId, 1f);
-            renderer.SetPropertyBlock(VisualPropertyBlock);
         }
 
         public void OnGet()
@@ -162,7 +142,6 @@ namespace CodexFramework.Utils.Pools
             if (_corpseBakePhysicsSuspended)
                 return;
 
-            BeforePhysicsSuspension?.Invoke();
             EnsureCorpseBakePhysicsCache();
             for (var i = 0; i < _corpseBakeColliders.Count; i++)
             {
@@ -298,7 +277,6 @@ namespace CodexFramework.Utils.Pools
             if (available == 0)
                 return 0;
 
-            BeforeJointsDisconnected?.Invoke();
             var maxBreaks = Mathf.Max(DismemberMinJoints, Mathf.FloorToInt(available * DismemberMaxJointFraction));
             var breakCount = available < DismemberMinJoints
                 ? available

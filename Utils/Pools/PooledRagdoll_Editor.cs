@@ -85,8 +85,6 @@ namespace CodexFramework.Utils.Pools
                     ConnectedBody = joints[i].connectedBody
                 };
             }
-            CacheBoneRenderers();
-
             EnsureDismemberDummies();
             _rigidbodies = CollectRigidbodies();
 
@@ -112,46 +110,6 @@ namespace CodexFramework.Utils.Pools
                     LocalRotation = childTransform.localRotation,
                 };
             }
-        }
-
-        private void CacheBoneRenderers()
-        {
-            // A single-body character has no detachable joints to cache meshes on.
-            if (_jointsCache.Length == 0)
-                return;
-            var renderers = GetComponentsInChildren<MeshRenderer>(true);
-            var counts = new int[_jointsCache.Length];
-            for (var i = 0; i < renderers.Length; i++)
-                counts[GetRendererJointCacheIndex(renderers[i])]++;
-
-            for (var i = 0; i < _jointsCache.Length; i++)
-            {
-                _jointsCache[i].Renderers = new MeshRenderer[counts[i]];
-                counts[i] = 0;
-            }
-
-            for (var i = 0; i < renderers.Length; i++)
-            {
-                var cacheIndex = GetRendererJointCacheIndex(renderers[i]);
-                _jointsCache[cacheIndex].Renderers[counts[cacheIndex]++] = renderers[i];
-            }
-        }
-
-        private int GetRendererJointCacheIndex(MeshRenderer renderer)
-        {
-            var rigidbody = renderer.GetComponentInParent<Rigidbody>(true);
-            for (var i = 0; i < _jointsCache.Length; i++)
-            {
-                if (_jointsCache[i].Joint.transform == rigidbody.transform)
-                    return i;
-            }
-            for (var i = 0; i < _jointsCache.Length; i++)
-            {
-                if (_jointsCache[i].ConnectedBody == rigidbody)
-                    return i;
-            }
-            throw new System.InvalidOperationException(
-                $"MeshRenderer '{renderer.name}' is not owned by a cached ragdoll rigidbody.");
         }
 
         private void EnsureDismemberDummies()
@@ -236,7 +194,6 @@ namespace CodexFramework.Utils.Pools
         
         public bool Check() =>
             CheckJoints() &&
-            CheckRenderers() &&
             CheckDummies() &&
             CheckRigidbodies() &&
             CheckChildren();
@@ -260,33 +217,6 @@ namespace CodexFramework.Utils.Pools
                     return false;
             }
 
-            return true;
-        }
-
-        private bool CheckRenderers()
-        {
-            if (_jointsCache.Length == 0) return true;
-            var cached = new HashSet<MeshRenderer>();
-            for (var i = 0; i < _jointsCache.Length; i++)
-            {
-                var renderers = _jointsCache[i].Renderers;
-                if (renderers == null)
-                    return false;
-                for (var j = 0; j < renderers.Length; j++)
-                {
-                    if (renderers[j] == null || !cached.Add(renderers[j]))
-                        return false;
-                }
-            }
-
-            var actual = GetComponentsInChildren<MeshRenderer>(true);
-            if (cached.Count != actual.Length)
-                return false;
-            for (var i = 0; i < actual.Length; i++)
-            {
-                if (!cached.Contains(actual[i]))
-                    return false;
-            }
             return true;
         }
 
