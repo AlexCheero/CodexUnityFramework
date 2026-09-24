@@ -68,7 +68,7 @@ namespace CodexFramework.Utils.Pools
                 return UniTask.FromCanceled<PoolItem>(cancellationToken);
             if (_isDestroying)
                 return UniTask.FromResult<PoolItem>(null);
-            if (_pendingAsyncCount == 0 && TryGet(out var item))
+            if (_asyncWorkQueue == null && _pendingAsyncCount == 0 && TryGet(out var item))
                 return UniTask.FromResult(item);
 
             var tcs = new UniTaskCompletionSource<PoolItem>();
@@ -92,7 +92,7 @@ namespace CodexFramework.Utils.Pools
                 return UniTask.FromCanceled<PoolItem>(cancellationToken);
             if (_isDestroying)
                 return UniTask.FromResult<PoolItem>(null);
-            if (_pendingAsyncCount == 0 && TryGet(out var item))
+            if (_asyncWorkQueue == null && _pendingAsyncCount == 0 && TryGet(out var item))
             {
                 try
                 {
@@ -135,7 +135,7 @@ namespace CodexFramework.Utils.Pools
                 return UniTask.FromCanceled<PoolItem>(cancellationToken);
             if (_isDestroying)
                 return UniTask.FromResult<PoolItem>(null);
-            if (_pendingAsyncCount == 0 && TryGet(out var item))
+            if (_asyncWorkQueue == null && _pendingAsyncCount == 0 && TryGet(out var item))
             {
                 try
                 {

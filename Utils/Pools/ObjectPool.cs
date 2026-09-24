@@ -26,8 +26,19 @@ namespace CodexFramework.Utils.Pools
         private bool _isDestroying;
         private int _growTarget;
         private int _pendingAsyncCount;
+        private int _pendingGrowthCount;
+        private PoolAsyncWorkQueue _asyncWorkQueue;
         private int _cancellableAsyncCount;
         private readonly Queue<AsyncWaiter> _asyncWaiters = new();
+
+        /// <summary>Assigns this pool to a shared checkout budget, pumped by its owner.</summary>
+        public void UseAsyncBudget(PoolAsyncWorkQueue queue)
+        {
+            if (_asyncWorkQueue != null && !ReferenceEquals(_asyncWorkQueue, queue))
+                throw new InvalidOperationException("A pool cannot change its async budget owner.");
+            _asyncWorkQueue = queue ?? throw new ArgumentNullException(nameof(queue));
+            if (_pendingAsyncCount > 0) queue.Schedule(this);
+        }
 
         public PoolItem Prototype => _prototype;
         public int Allocated => _allocatedCount;
@@ -104,6 +115,7 @@ namespace CodexFramework.Utils.Pools
             _allocatedCount = 0;
             _growTarget = 0;
             _pendingAsyncCount = 0;
+            _pendingGrowthCount = 0;
             _cancellableAsyncCount = 0;
             _itemsDirty = false;
             _isDestroying = false;
@@ -277,7 +289,7 @@ namespace CodexFramework.Utils.Pools
         }
 
         private int DesiredSizeForGets(int additionalGets) =>
-            _firstAvailable + _pendingAsyncCount + additionalGets;
+            _firstAvailable + _pendingGrowthCount + additionalGets;
 
         private void RequestGrow(int minDesiredSize)
         {
@@ -342,6 +354,19 @@ namespace CodexFramework.Utils.Pools
                 return;
             }
 
+            if (_asyncWorkQueue != null)
+            {
+                // Budgeted pools admit activation, reset hooks and the callback together.
+                var waiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, forceGrow);
+                _asyncWaiters.Enqueue(waiter);
+                _pendingAsyncCount++;
+                if (forceGrow) _pendingGrowthCount++;
+                if (waiter.CanBeCanceled) _cancellableAsyncCount++;
+                if (forceGrow) RequestGrow(DesiredSizeForGets(0));
+                _asyncWorkQueue.Schedule(this);
+                return;
+            }
+
             if (_pendingAsyncCount == 0 && TryGet(out var item))
             {
                 CompleteImmediate(onReady, onCanceled, cancellationToken, item);
@@ -369,6 +394,7 @@ namespace CodexFramework.Utils.Pools
             var queuedWaiter = new AsyncWaiter(onReady, onCanceled, cancellationToken);
             _asyncWaiters.Enqueue(queuedWaiter);
             _pendingAsyncCount++;
+            _pendingGrowthCount++;
             if (queuedWaiter.CanBeCanceled)
                 _cancellableAsyncCount++;
             RequestGrow(DesiredSizeForGets(0));
@@ -379,6 +405,12 @@ namespace CodexFramework.Utils.Pools
         {
             if (_isDestroying || _isFulfillingAsyncWaiters)
                 return;
+
+            if (_asyncWorkQueue != null)
+            {
+                if (_pendingAsyncCount > 0) _asyncWorkQueue.Schedule(this);
+                return;
+            }
 
             _isFulfillingAsyncWaiters = true;
             try
@@ -424,11 +456,55 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
+        internal bool ProcessBudgetedWaiter()
+        {
+            if (_isDestroying || _isFulfillingAsyncWaiters) return false;
+            _isFulfillingAsyncWaiters = true;
+            try
+            {
+                PruneCanceledAsyncWaiters();
+                if (_pendingAsyncCount == 0) return false;
+                var waiter = _asyncWaiters.Peek();
+                if (!TryGet(out var item))
+                {
+                    var fixedAndFull = _maxCount > 0 && _allocatedCount >= _maxCount;
+                    if (!fixedAndFull || !TryReclaimOne() || !TryGet(out item))
+                    {
+                        if (waiter.ForceGrow && !fixedAndFull) return false;
+                        _asyncWaiters.Dequeue();
+                        RemovePendingWaiter(waiter);
+                        try { waiter.Fail(); }
+                        catch (Exception ex) { Debug.LogException(ex); }
+                        return true;
+                    }
+                }
+                _asyncWaiters.Dequeue();
+                RemovePendingWaiter(waiter);
+                var lease = item.LeaseVersion;
+                try
+                {
+                    if (!waiter.TryComplete(item)) ReturnFailedDeliveryIfStillOwned(item, lease);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                    ReturnFailedDeliveryIfStillOwned(item, lease);
+                }
+                return true;
+            }
+            finally
+            {
+                _isFulfillingAsyncWaiters = false;
+                if (!_isDestroying) RefreshGrowTarget();
+            }
+        }
+
         private void FailAllAsyncWaiters()
         {
             var waiters = _asyncWaiters.ToArray();
             _asyncWaiters.Clear();
             _pendingAsyncCount = 0;
+            _pendingGrowthCount = 0;
             _cancellableAsyncCount = 0;
             for (var i = 0; i < waiters.Length; i++)
             {
@@ -694,6 +770,7 @@ namespace CodexFramework.Utils.Pools
         private void RemovePendingWaiter(AsyncWaiter waiter)
         {
             _pendingAsyncCount--;
+            if (waiter.ForceGrow) _pendingGrowthCount--;
             if (waiter.CanBeCanceled)
                 _cancellableAsyncCount--;
         }
@@ -722,7 +799,9 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
-        private void OnDestroy()
+        private void OnDestroy() => CancelPendingRequests();
+
+        internal void CancelPendingRequests()
         {
             _isDestroying = true;
             FailAllAsyncWaiters();
@@ -738,12 +817,14 @@ namespace CodexFramework.Utils.Pools
             public bool IsCancellationRequested =>
                 !_isCompleted && _cancellationToken.IsCancellationRequested;
             public bool CanBeCanceled => _cancellationToken.CanBeCanceled;
+            public bool ForceGrow { get; }
 
             public AsyncWaiter(
                 Action<PoolItem> onReady,
                 Action onCanceled,
-                CancellationToken cancellationToken)
+                CancellationToken cancellationToken, bool forceGrow = true)
             {
+                ForceGrow = forceGrow;
                 _onReady = onReady;
                 _onCanceled = onCanceled;
                 _cancellationToken = cancellationToken;
