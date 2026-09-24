@@ -71,7 +71,7 @@ namespace CodexFramework.Utils.Pools
         private bool[] _corpseBakeDetectedCollisions;
         private bool[] _corpseBakeColliderEnabled;
 
-        public bool IsPhysicsSuspendedForCorpseBake => _corpseBakePhysicsSuspended;
+        public bool IsPhysicsSuspended => _corpseBakePhysicsSuspended;
 
         private void Awake()
         {
@@ -134,10 +134,10 @@ namespace CodexFramework.Utils.Pools
         }
 
         /// <summary>
-        /// Freezes the exact current ragdoll pose while it waits for a later-frame combined-mesh
-        /// bake. Renderers and the pooled root stay active, so the corpse remains visible.
+        /// Freezes the current ragdoll pose for physics-free falling, recovery, or mesh baking.
+        /// Renderers and the pooled root stay active; physics is restored on pool reuse.
         /// </summary>
-        public void SuspendPhysicsUntilCorpseBake()
+        public void SuspendPhysics()
         {
             if (_corpseBakePhysicsSuspended)
                 return;
