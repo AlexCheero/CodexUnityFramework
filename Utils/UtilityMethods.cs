@@ -1,3 +1,6 @@
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -86,6 +89,27 @@ namespace CodexFramework.Utils
 
         public static bool GetTouchDownPosition(ref Vector3 position)
         {
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null)
+            {
+                if ((Mouse.current?.leftButton.wasPressedThisFrame == true))
+                {
+                    position = (Mouse.current?.position.ReadValue() ?? Vector2.zero);
+                    return true;
+                }
+            }
+            else
+            {
+                if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
+                {
+                    var touch = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0];
+                    if (touch.phase != UnityEngine.InputSystem.TouchPhase.Began)
+                        return false;
+                    position = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0].screenPosition;
+                    return true;
+                }
+            }
+#else
             if (Input.mousePresent)
             {
                 if (Input.GetMouseButtonDown(0))
@@ -94,17 +118,15 @@ namespace CodexFramework.Utils
                     return true;
                 }
             }
-            else
+            else if (Input.touchCount > 0)
             {
-                if (Input.touchCount > 0)
-                {
-                    var touch = Input.GetTouch(0);
-                    if (touch.phase != TouchPhase.Began)
-                        return false;
-                    position = Input.GetTouch(0).position;
-                    return true;
-                }
+                var touch = Input.GetTouch(0);
+                if (touch.phase != TouchPhase.Began)
+                    return false;
+                position = touch.position;
+                return true;
             }
+#endif
 
             return false;
         }
@@ -370,6 +392,24 @@ namespace CodexFramework.Utils
         public static bool GetTouchPosition(out Vector3 position)
         {
             position = Vector3.zero;
+#if ENABLE_INPUT_SYSTEM
+#if UNITY_EDITOR
+            if ((Mouse.current?.leftButton.wasPressedThisFrame == true))
+            {
+                position = (Mouse.current?.position.ReadValue() ?? Vector2.zero);
+                return true;
+            }
+#else
+            if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
+            {
+                var touch = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0];
+                if (touch.phase != UnityEngine.InputSystem.TouchPhase.Began)
+                    return false;
+                position = touch.screenPosition;
+                return true;
+            }
+#endif
+#else
 #if UNITY_EDITOR
             if (Input.GetMouseButtonDown(0))
             {
@@ -377,14 +417,15 @@ namespace CodexFramework.Utils
                 return true;
             }
 #else
-        if (Input.touchCount > 0)
-        {
-            var touch = Input.GetTouch(0);
-            if (touch.phase != TouchPhase.Began)
-                return false;
-            position = Input.GetTouch(0).position;
-            return true;
-        }
+            if (Input.touchCount > 0)
+            {
+                var touch = Input.GetTouch(0);
+                if (touch.phase != TouchPhase.Began)
+                    return false;
+                position = touch.position;
+                return true;
+            }
+#endif
 #endif
 
             return false;
