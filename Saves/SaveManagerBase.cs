@@ -12,283 +12,157 @@ namespace CodexFramework.Saves
         where TSaveData : IGameSaveData<TSaveData>, new()
         where TSerializer : ISaveDataSerializer<TSaveData>, new()
     {
-        private static readonly TSerializer Serializer = default;
-
+        private static readonly TSerializer Serializer = new();
         private static List<TSaveData> _saves;
         private static SavePersistenceMeta _meta;
-
+        private static ISaveCloudStorage _cloud;
+        private static string _directory;
         public static IReadOnlyList<TSaveData> Saves => _saves;
+        private static string DirectoryPath => _directory ?? Application.persistentDataPath;
+        private static bool SyncCloud => _cloud != null && _cloud.Enabled;
+
+        // Null cloud explicitly selects local storage (non-Steam builds and edit-mode tools).
+        public static void ConfigureStorage(string directory, ISaveCloudStorage cloud)
+        {
+            _directory = directory;
+            _cloud = cloud;
+            _saves = null;
+            _meta = new TSaveData().Persistence;
+        }
 
         public static void LoadSaves()
         {
             _meta = new TSaveData().Persistence;
-            if (ShouldWipe())
-                Wipe();
-
-            _saves ??= new();
-            _saves.Clear();
-
-#if UNITY_STEAM
-            for (int i = 0; i < SteamRemoteStorage.GetFileCount(); i++)
-            {
-                string fileName = SteamRemoteStorage.GetFileNameAndSize(i, out _);
-                if (fileName.StartsWith(_meta.FilePrefix) && LoadFromCloud(fileName, out var saveData))
-                    _saves.Add(saveData);
-            }
-#endif
-
-            var localSaves = _saves.Count == 0 ? _saves : new List<TSaveData>();
-            var dirInfo = new DirectoryInfo(Application.persistentDataPath);
-            foreach (var fileInfo in dirInfo.GetFiles())
-            {
-                if (!fileInfo.Name.StartsWith(_meta.FilePrefix))
-                    continue;
-
-                var saveName = Path.GetFileNameWithoutExtension(fileInfo.Name);
-                if (LoadLocal(saveName, out var saveData))
-                    localSaves.Add(saveData);
-            }
-
-            if (localSaves != _saves)
-                _saves = MergeSaves(localSaves, _saves);
-
-            PlayerPrefs.SetString(_meta.VersionKey, Application.version);
-            PlayerPrefs.Save();
+            _saves = null;
+            Directory.CreateDirectory(DirectoryPath);
+            if (ShouldWipe()) Wipe();
+            var local = new List<TSaveData>();
+            foreach (var path in Directory.GetFiles(DirectoryPath).Where(path => IsSaveFile(Path.GetFileName(path))))
+                local.Add(ReadSave(Path.GetFileName(path), File.ReadAllText(path, Encoding.UTF8)));
+            var cloud = new List<TSaveData>();
+            bool syncCloud = SyncCloud;
+            if (syncCloud)
+                foreach (var fileName in _cloud.GetFileNames().Where(IsSaveFile))
+                    cloud.Add(ReadSave(fileName, Encoding.UTF8.GetString(_cloud.Read(fileName))));
+            // Reconcile even an empty cloud on the first Steam launch.
+            _saves = MergeSaves(local, cloud, syncCloud);
+            RememberVersion();
         }
 
-        private static List<TSaveData> MergeSaves(List<TSaveData> localSaves, List<TSaveData> cloudSaves)
+        private static bool IsSaveFile(string fileName) =>
+            fileName.StartsWith(_meta.FilePrefix, StringComparison.Ordinal) &&
+            fileName.EndsWith(".json", StringComparison.Ordinal);
+
+        private static TSaveData ReadSave(string fileName, string json)
         {
-            var allNames = localSaves.Select(s => s.Name).Union(cloudSaves.Select(s => s.Name));
-            var localByName = localSaves.ToDictionary(s => s.Name);
-            var cloudByName = cloudSaves.ToDictionary(s => s.Name);
+            // Read/format failures stop loading, never create and upload a replacement profile.
+            var data = Serializer.FromJson(json);
+            if (GetFileName(data.Name) != fileName)
+                throw new InvalidDataException($"Save '{fileName}' contains a different profile name '{data.Name}'.");
+            data.GetLastSaveUtc();
+            return data;
+        }
 
+        private static List<TSaveData> MergeSaves(List<TSaveData> localSaves, List<TSaveData> cloudSaves, bool syncCloud)
+        {
+            var local = localSaves.ToDictionary(save => save.Name);
+            var cloud = cloudSaves.ToDictionary(save => save.Name);
             var winners = new List<TSaveData>();
-            foreach (var name in allNames)
+            foreach (var name in local.Keys.Union(cloud.Keys))
             {
-                var inLocal = localByName.TryGetValue(name, out var local);
-                var inCloud = cloudByName.TryGetValue(name, out var cloud);
-
-                TSaveData winner;
-                if (inLocal && inCloud)
-                {
-                    if (local.ContentEquals(cloud))
-                    {
-                        winners.Add(local);
-                        continue;
-                    }
-
-                    winner = local.GetLastSaveUtc() >= cloud.GetLastSaveUtc() ? local : cloud;
-                }
-                else
-                {
-                    winner = inLocal ? local : cloud;
-                }
-
-#if UNITY_STEAM
-                if (!inCloud || !winner.ContentEquals(cloud))
-                    SaveToCloud(winner);
-#endif
-                if (!inLocal || !winner.ContentEquals(local))
-                    SaveLocal(winner);
-
+                bool inLocal = local.TryGetValue(name, out var localSave);
+                bool inCloud = cloud.TryGetValue(name, out var cloudSave);
+                var winner = !inLocal ? cloudSave : !inCloud ? localSave :
+                    localSave.GetLastSaveUtc() >= cloudSave.GetLastSaveUtc() ? localSave : cloudSave;
                 winners.Add(winner);
             }
-
-            var sorted = winners
-                .OrderBy(s => s.Position)
-                .ThenByDescending(s => s.GetLastSaveUtc())
-                .ToList();
-
+            var sorted = winners.OrderBy(save => save.Position).ThenByDescending(save => save.GetLastSaveUtc()).ToList();
             for (int i = 0; i < sorted.Count; i++)
             {
-                if (sorted[i].Position == i)
-                    continue;
-
-                var shifted = sorted[i];
-                shifted.Position = i;
-                sorted[i] = shifted;
-
-#if UNITY_STEAM
-                SaveToCloud(shifted);
-#endif
-                SaveLocal(shifted);
+                var save = sorted[i];
+                bool shifted = save.Position != i;
+                save.Position = i;
+                sorted[i] = save;
+                // Preserve the winning timestamp even when gameplay contents are equal.
+                string json = save.ToJson();
+                if (shifted || !local.TryGetValue(save.Name, out var localSave) || localSave.ToJson() != json)
+                    SaveLocal(save.Name, json);
+                if (syncCloud && (shifted || !cloud.TryGetValue(save.Name, out var cloudSave) || cloudSave.ToJson() != json))
+                    _cloud.Write(GetFileName(save.Name), Encoding.UTF8.GetBytes(json));
             }
-
             return sorted;
         }
 
-        private static bool ShouldWipe()
-        {
-            if (!PlayerPrefs.HasKey(_meta.VersionKey))
-                return false;
-
-            return VersionUtility.CompareVersions(PlayerPrefs.GetString(_meta.VersionKey), _meta.WipeBelowVersion) < 0;
-        }
+        private static bool ShouldWipe() => PlayerPrefs.HasKey(_meta.VersionKey) &&
+            VersionUtility.CompareVersions(PlayerPrefs.GetString(_meta.VersionKey), _meta.WipeBelowVersion) < 0;
 
         private static void Wipe()
         {
             _saves?.Clear();
-
-            var dirInfo = new DirectoryInfo(Application.persistentDataPath);
-            foreach (var fileInfo in dirInfo.GetFiles())
-            {
-                if (!fileInfo.Name.StartsWith(_meta.FilePrefix))
-                    continue;
-                fileInfo.Delete();
-            }
-
-#if UNITY_STEAM
-            for (int i = SteamRemoteStorage.GetFileCount() - 1; i >= 0; i--)
-            {
-                string fileName = SteamRemoteStorage.GetFileNameAndSize(i, out _);
-                if (fileName.StartsWith(_meta.FilePrefix))
-                    DeleteFromCloud(fileName);
-            }
-#endif
-
+            if (SyncCloud)
+                foreach (var fileName in _cloud.GetFileNames().Where(IsSaveFile).ToArray())
+                    _cloud.Delete(fileName);
+            foreach (var path in Directory.GetFiles(DirectoryPath).Where(path => IsSaveFile(Path.GetFileName(path))))
+                File.Delete(path);
             PlayerPrefs.DeleteKey(_meta.VersionKey);
         }
 
-        private static string GetLocalPath(string fileName) =>
-            Path.Combine(Application.persistentDataPath, fileName) + ".json";
+        private static string GetFileName(string name) => name + ".json";
+        private static string GetLocalPath(string name) => Path.Combine(DirectoryPath, GetFileName(name));
 
         public static void Save(TSaveData data)
         {
-            if (string.IsNullOrEmpty(_meta.FilePrefix))
-                _meta = new TSaveData().Persistence;
-
+            _meta = new TSaveData().Persistence;
             _saves ??= new();
             data.StampSaveTime();
-
-            if (_saves.Count > data.Position)
-                _saves[data.Position] = data;
-            else
-            {
-                data.Position = _saves.Count;
-                _saves.Add(data);
-            }
-
-            SaveLocal(data);
-
-#if UNITY_STEAM
-            SaveToCloud(data);
-#endif
-
-            PlayerPrefs.SetString(_meta.VersionKey, Application.version);
-            PlayerPrefs.Save();
+            int index = _saves.FindIndex(save => save.Name == data.Name);
+            data.Position = index < 0 ? _saves.Count : index;
+            if (index < 0) _saves.Add(data);
+            else _saves[index] = data;
+            string json = data.ToJson();
+            SaveLocal(data.Name, json);
+            if (SyncCloud) _cloud.Write(GetFileName(data.Name), Encoding.UTF8.GetBytes(json));
+            RememberVersion();
         }
 
         public static void Delete(int position)
         {
-            if (position < 0 || position >= _saves.Count)
-                return;
+            if (_saves == null || position < 0 || position >= _saves.Count) return;
             Delete(_saves[position].Name);
         }
 
-        public static void Delete(string fileName)
+        public static void Delete(string name)
         {
-            var dataIdx = _saves?.FindIndex(data => data.Name.Equals(fileName)) ?? -1;
-            if (dataIdx != -1)
-                _saves.RemoveAt(dataIdx);
-            if (File.Exists(GetLocalPath(fileName)))
-                File.Delete(GetLocalPath(fileName));
-
-#if UNITY_STEAM
-            DeleteFromCloud(fileName);
-#endif
-        }
-
-        private static void SaveLocal(TSaveData data) => SaveLocal(data.Name, data.ToJson());
-
-        private static void SaveLocal(string fileName, string json)
-        {
-            try
+            if (SyncCloud) _cloud.Delete(GetFileName(name));
+            File.Delete(GetLocalPath(name));
+            int index = _saves?.FindIndex(save => save.Name == name) ?? -1;
+            if (index < 0) return;
+            _saves.RemoveAt(index);
+            for (int i = index; i < _saves.Count; i++)
             {
-                File.WriteAllText(GetLocalPath(fileName), json, Encoding.UTF8);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[SaveManager] Local save exception: {e.Message}");
+                var save = _saves[i];
+                save.Position = i;
+                _saves[i] = save;
+                string json = save.ToJson();
+                SaveLocal(save.Name, json);
+                if (SyncCloud) _cloud.Write(GetFileName(save.Name), Encoding.UTF8.GetBytes(json));
             }
         }
 
-        private static bool LoadLocal(string fileName, out TSaveData data)
+        private static void SaveLocal(string name, string json)
         {
-            data = default;
-            if (!File.Exists(GetLocalPath(fileName)))
-            {
-                Debug.Log($"[SaveManager] Local file not found: {GetLocalPath(fileName)}");
-                return false;
-            }
-
-            try
-            {
-                string json = File.ReadAllText(GetLocalPath(fileName), Encoding.UTF8);
-                data = Serializer.FromJson(json);
-                return true;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[SaveManager] Local file read exception: {e.Message}");
-                return false;
-            }
+            Directory.CreateDirectory(DirectoryPath);
+            string path = GetLocalPath(name);
+            string temporary = path + ".tmp";
+            File.WriteAllText(temporary, json, new UTF8Encoding(false));
+            if (File.Exists(path)) File.Replace(temporary, path, null);
+            else File.Move(temporary, path);
         }
 
-#if UNITY_STEAM
-        private static void SaveToCloud(TSaveData data) =>
-            SaveToCloud(data.Name, Encoding.UTF8.GetBytes(data.ToJson()));
-
-        private static void SaveToCloud(string fileName, byte[] bytes)
+        private static void RememberVersion()
         {
-            if (!Steamworks.SteamRemoteStorage.IsCloudEnabledForAccount() ||
-                !Steamworks.SteamRemoteStorage.IsCloudEnabledForApp())
-            {
-                Debug.LogWarning("[SaveManager] Steam Cloud disabled.");
-                return;
-            }
-
-            if (!Steamworks.SteamRemoteStorage.FileWrite(fileName, bytes, bytes.Length))
-                Debug.LogError("[SaveManager] Steam Cloud save failed.");
+            PlayerPrefs.SetString(_meta.VersionKey, Application.version);
+            PlayerPrefs.Save();
         }
-
-        private static bool LoadFromCloud(string fileName, out TSaveData data)
-        {
-            data = default;
-            if (!Steamworks.SteamRemoteStorage.FileExists(fileName))
-            {
-                Debug.Log("[SaveManager] Steam Cloud file not found.");
-                return false;
-            }
-
-            try
-            {
-                int size = Steamworks.SteamRemoteStorage.GetFileSize(fileName);
-                byte[] bytes = new byte[size];
-                int read = Steamworks.SteamRemoteStorage.FileRead(fileName, bytes, size);
-
-                if (read == 0)
-                {
-                    Debug.LogWarning("[SaveManager] Steam Cloud returned empty file.");
-                    return false;
-                }
-
-                string json = Encoding.UTF8.GetString(bytes, 0, read);
-                data = Serializer.FromJson(json);
-                return true;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[SaveManager] Steam Cloud read error: {e.Message}");
-                return false;
-            }
-        }
-
-        private static void DeleteFromCloud(string fileName)
-        {
-            if (!Steamworks.SteamRemoteStorage.FileExists(fileName))
-                return;
-            Steamworks.SteamRemoteStorage.FileDelete(fileName);
-        }
-#endif
     }
 }
