@@ -191,7 +191,7 @@ namespace CodexFramework.Utils.Pools
         }
 
         /// <summary>Idempotent pool safety reset, called on both return and checkout.</summary>
-        private void RestorePhysicsAfterCorpseBakeSuspension()
+        public void RestorePhysicsAfterCorpseBakeSuspension()
         {
             if (!_corpseBakePhysicsSuspended)
                 return;
