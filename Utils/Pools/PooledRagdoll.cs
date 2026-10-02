@@ -72,6 +72,7 @@ namespace CodexFramework.Utils.Pools
         private bool[] _corpseBakeColliderEnabled;
 
         public bool IsPhysicsSuspended => _corpseBakePhysicsSuspended;
+        public IReadOnlyList<Rigidbody> Rigidbodies => _rigidbodies;
 
         private void Awake()
         {
