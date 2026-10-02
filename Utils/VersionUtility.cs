@@ -1,6 +1,6 @@
+using System;
 using System.Globalization;
 using System.Linq;
-using UnityEngine;
 
 namespace CodexFramework.Utils
 {
@@ -8,20 +8,13 @@ namespace CodexFramework.Utils
     {
         public static int CompareVersions(string version1, string version2)
         {
-            var versionNumbers1 = version1.Split('.');
-            var versionNumbers2 = version2.Split('.');
-            if (versionNumbers1.Length != versionNumbers2.Length)
-            {
-                Debug.LogError($"corrupted version string. v1: {version1}, v2: {version2}");
-                return -1;
-            }
+            var versionNumbers1 = ParseComponents(version1);
+            var versionNumbers2 = ParseComponents(version2);
 
-            for (int i = versionNumbers1.Length - 1; i >= 0; i--)
+            for (int i = 0; i < Math.Max(versionNumbers1.Length, versionNumbers2.Length); i++)
             {
-                var strippedPrev = new string(versionNumbers1[i].Where(char.IsDigit).ToArray());
-                var strippedCurr = new string(versionNumbers2[i].Where(char.IsDigit).ToArray());
-                var prevNum = int.Parse(strippedPrev, CultureInfo.InvariantCulture);
-                var currNum = int.Parse(strippedCurr, CultureInfo.InvariantCulture);
+                var prevNum = i < versionNumbers1.Length ? versionNumbers1[i] : 0;
+                var currNum = i < versionNumbers2.Length ? versionNumbers2[i] : 0;
                 if (prevNum < currNum)
                     return -1;
                 if (prevNum > currNum)
@@ -30,5 +23,9 @@ namespace CodexFramework.Utils
 
             return 0;
         }
+
+        private static int[] ParseComponents(string version) => version.Split('.')
+            .Select(component => int.Parse(component, NumberStyles.None, CultureInfo.InvariantCulture))
+            .ToArray();
     }
 }
