@@ -14,6 +14,15 @@ namespace CodexFramework.Utils.Pools
         }
 
         public ObjectPool GetByPrototype(IPoolableBehaviour prototype) => GetByPrototype(prototype.Item);
+        public ObjectPool Prewarm(IPoolableBehaviour prototype) => Prewarm(prototype.Item);
+
+        public ObjectPool Prewarm(PoolItem prototype)
+        {
+            var pool = GetByPrototype(prototype, prototype.PrewarmCount, prototype.MaxCount);
+            pool.PrewarmWithBatchGrowth();
+            return pool;
+        }
+
         public ObjectPool GetByPrototype(PoolItem prototype) => GetByPrototype(prototype, prototype.InitialCount, prototype.MaxCount);
         
         public ObjectPool GetByPrototype(IPoolableBehaviour prototype, int initialCount, int maxCount) => GetByPrototype(prototype.Item, initialCount, maxCount);

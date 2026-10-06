@@ -25,12 +25,15 @@ namespace CodexFramework.Utils.Pools
     {
         [SerializeField]
         private int _initialCount = 2;
+        [SerializeField, Min(1)]
+        private int _prewarmCount = 32;
         [SerializeField]
         private int _maxCount = -1;
         [SerializeField]
         private int _growPerFrame = 1;
         
         public int InitialCount => _initialCount;
+        public int PrewarmCount => _prewarmCount;
         public int MaxCount => _maxCount;
         public int GrowPerFrame => _growPerFrame;
         

@@ -144,7 +144,7 @@ namespace CodexFramework.Utils.Pools.Editor
                 item => item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
             Assert.AreEqual(2, pool.Allocated);
 
-            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            pool.PrewarmWithBatchGrowth();
 
             Assert.AreEqual(2, pool.Allocated,
                 "Warmup must not spend the same frame's growth budget a second time.");
@@ -175,6 +175,26 @@ namespace CodexFramework.Utils.Pools.Editor
         }
 
         [UnityTest]
+        public IEnumerator BatchPrewarm_UsesAuthoredCountForInitialAndThresholdGrowth()
+        {
+            var pool = CreatePool(128, -1, 2, item =>
+            {
+                var serialized = new SerializedObject(item);
+                serialized.FindProperty("_prewarmCount").intValue = 8;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            });
+            pool.PrewarmWithBatchGrowth();
+            Assert.AreEqual(8, pool.GrowTarget);
+            yield return WaitForAllocation(pool, 8, 2);
+
+            for (var i = 0; i < 6; i++)
+                Assert.NotNull(pool.Get());
+            Assert.AreEqual(16, pool.GrowTarget);
+            yield return WaitForAllocation(pool, 16, 2);
+            Assert.AreEqual(6, pool.ActiveCount);
+        }
+
+        [UnityTest]
         public IEnumerator BatchGrowth_SchedulesThirtyTwoAtEachSeventyFivePercentBoundary()
         {
             var thresholds = new[] { 24, 48, 72 };
@@ -182,7 +202,7 @@ namespace CodexFramework.Utils.Pools.Editor
             foreach (var checkoutApi in new[] { "TryGet", "Get", "GetAsync" })
             {
                 var pool = CreatePool(32, -1, 8);
-                pool.PrewarmWithBatchGrowth(32, 0.75f);
+                pool.PrewarmWithBatchGrowth();
                 yield return WaitForAllocation(pool, 32, 8);
                 for (var boundary = 0; boundary < thresholds.Length; boundary++)
                 {
@@ -227,7 +247,7 @@ namespace CodexFramework.Utils.Pools.Editor
             Assert.AreEqual(2, pool.Allocated,
                 "The existing grow loop must retain its frame budget while these requests queue.");
 
-            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            pool.PrewarmWithBatchGrowth();
 
             Assert.AreEqual(2, pool.Allocated);
             Assert.AreEqual(results.Length, pool.PendingAsyncCount);
@@ -250,8 +270,8 @@ namespace CodexFramework.Utils.Pools.Editor
         public IEnumerator BatchPrewarm_InFlightLeasesAndReturnsPreserveCommittedBatches()
         {
             var pool = CreatePool(32, -1, 4);
-            pool.PrewarmWithBatchGrowth(32, 0.75f);
-            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            pool.PrewarmWithBatchGrowth();
+            pool.PrewarmWithBatchGrowth();
             Assert.AreEqual(5, pool.Allocated);
             Assert.AreEqual(32, pool.GrowTarget);
             var leased = new List<PoolItem>();
@@ -286,10 +306,10 @@ namespace CodexFramework.Utils.Pools.Editor
             cancellation.Cancel();
 #endif
 
-            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            pool.PrewarmWithBatchGrowth();
             foreach (var item in leased)
                 item.ReturnToPool();
-            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            pool.PrewarmWithBatchGrowth();
 
             Assert.AreEqual(64, pool.GrowTarget,
                 "Returning leases or canceling demand must not erase the promised refill batch.");
@@ -315,7 +335,7 @@ namespace CodexFramework.Utils.Pools.Editor
             var warmedPool = CreatePool(32, -1, 8);
             var ordinaryPool = CreatePool(32, -1, 256);
             warmedPool.transform.SetParent(ordinaryPool.transform);
-            warmedPool.PrewarmWithBatchGrowth(32, 0.75f);
+            warmedPool.PrewarmWithBatchGrowth();
 
             yield return WaitForAllocation(warmedPool, 32, 8);
 
@@ -341,7 +361,7 @@ namespace CodexFramework.Utils.Pools.Editor
             foreach (var maximum in new[] { 16, 40 })
             {
                 var pool = CreatePool(1, maximum, 4);
-                pool.PrewarmWithBatchGrowth(32, 0.75f);
+                pool.PrewarmWithBatchGrowth();
                 Assert.AreEqual(5, pool.Allocated);
 
                 yield return WaitForAllocation(pool, Math.Min(32, maximum), 4);
@@ -372,7 +392,7 @@ namespace CodexFramework.Utils.Pools.Editor
         {
             var pool = CreatePool(32, -1, 8,
                 item => item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
-            pool.PrewarmWithBatchGrowth(32, 0.75f);
+            pool.PrewarmWithBatchGrowth();
 
             yield return WaitForAllocation(pool, 32, 8);
 

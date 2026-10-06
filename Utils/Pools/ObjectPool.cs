@@ -232,10 +232,9 @@ namespace CodexFramework.Utils.Pools
         /// Schedules warmup without checking out items, then reserves another batch whenever
         /// the active fraction reaches the threshold. Both use the normal per-frame grow budget.
         /// </summary>
-        public void PrewarmWithBatchGrowth(int batchSize, float activeThreshold)
+        public void PrewarmWithBatchGrowth(float activeThreshold = 0.75f)
         {
-            if (batchSize < 1)
-                throw new ArgumentOutOfRangeException(nameof(batchSize));
+            var batchSize = _prototype.PrewarmCount;
             if (!(activeThreshold > 0f && activeThreshold <= 1f))
                 throw new ArgumentOutOfRangeException(nameof(activeThreshold));
             if (_isDestroying ||
