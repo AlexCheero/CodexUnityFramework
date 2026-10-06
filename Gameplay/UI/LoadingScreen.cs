@@ -117,12 +117,7 @@ namespace CodexFramework.Gameplay.UI
             if (float.IsNaN(value))
                 return;
             Progress = Mathf.Max(Progress, Mathf.Clamp01(value));
-            if (_progressBar != null)
-            {
-                // Stretch the fill inside its track; a sprite-less Image works too.
-                var fill = _progressBar.rectTransform;
-                fill.anchorMax = new Vector2(Progress, fill.anchorMax.y);
-            }
+            _progressBar.fillAmount = Progress;
             if (_progressTextAccessor != null)
                 _progressTextAccessor.Text = $"{Mathf.FloorToInt(Progress * 100f)}%";
         }
