@@ -23,9 +23,15 @@ namespace CodexFramework.Utils.Pools.Editor
         public bool ObserveOnEnable { get; set; }
         public bool ObservedInPoolOnEnable { get; private set; }
         public int EnableObservationCount { get; private set; }
+        public int DisableObservationCount { get; private set; }
+        public Vector3 PositionOnEnable { get; private set; }
+        public Quaternion RotationOnEnable { get; private set; }
+        public Vector3 PositionOnGet { get; private set; }
+        public readonly List<string> Events = new();
         public int GetCount { get; private set; }
         public int ReturnCount { get; private set; }
         public bool ReturnDuringGet { get; set; }
+        public bool ReturnDuringEnable { get; set; }
         public bool ThrowDuringGet { get; set; }
         public bool TryGetDuringReturn { get; set; }
         public bool ReturnDuringDisable { get; set; }
@@ -40,11 +46,17 @@ namespace CodexFramework.Utils.Pools.Editor
             {
                 ObservedInPoolOnEnable = Item.IsInPool;
                 EnableObservationCount++;
+                PositionOnEnable = transform.position;
+                RotationOnEnable = transform.rotation;
+                Events.Add("enable");
             }
+            if (ReturnDuringEnable && Item && !Item.IsInPool)
+                Item.ReturnToPool();
         }
 
         private void OnDisable()
         {
+            if (ObserveOnEnable) DisableObservationCount++;
             if (ReturnDuringDisable && Item && !Item.IsInPool)
                 Item.ReturnToPool();
         }
@@ -52,6 +64,11 @@ namespace CodexFramework.Utils.Pools.Editor
         public void OnGet()
         {
             GetCount++;
+            if (ObserveOnEnable)
+            {
+                PositionOnGet = transform.position;
+                Events.Add("reset");
+            }
             if (ReturnDuringGet)
                 Item.ReturnToPool();
             if (ThrowDuringGet)
@@ -565,19 +582,173 @@ namespace CodexFramework.Utils.Pools.Editor
         }
 
         [Test]
-        public void PositionedGet_OnDisableReturningLeaseIsRejectedWithoutReactivation()
+        public void PositionedGet_DoesNotDisableTheItemDuringCheckout()
         {
             ObjectPoolLifecycleProbe probe = null;
             var pool = CreatePool(1, -1, 256,
                 item => probe = item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
             probe.ReturnDuringDisable = true;
+            probe.ObserveOnEnable = true;
 
-            Assert.Throws<InvalidOperationException>(() => pool.Get(Vector3.one));
+            var item = pool.Get(Vector3.one);
 
+            Assert.AreSame(probe.Item, item);
+            Assert.AreEqual(1, pool.ActiveCount);
+            Assert.AreEqual(1, probe.EnableObservationCount);
+            Assert.AreEqual(0, probe.DisableObservationCount);
+            Assert.IsFalse(item.IsInPool);
+            Assert.IsTrue(item.gameObject.activeSelf);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void OnEnableReturningItsOwnLease_IsRejectedWithoutReset(bool positioned)
+        {
+            ObjectPoolLifecycleProbe probe = null;
+            var pool = CreatePool(1, -1, 256,
+                item => probe = item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
+            probe.ReturnDuringEnable = true;
+
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                if (positioned) pool.Get(Vector3.one);
+                else pool.Get();
+            });
+
+            Assert.AreEqual(0, probe.GetCount);
             Assert.AreEqual(0, pool.ActiveCount);
             Assert.AreEqual(1, pool.AvailableCount);
             Assert.IsTrue(probe.Item.IsInPool);
-            Assert.IsFalse(probe.Item.gameObject.activeSelf);
+        }
+
+        [TestCase("sync", false, false)]
+        [TestCase("sync", true, false)]
+        [TestCase("callback", false, false)]
+        [TestCase("callback", true, false)]
+        [TestCase("callback", false, true)]
+        [TestCase("callback", true, true)]
+#if CODEX_UNITASK_SUPPORT
+        [TestCase("task", false, false)]
+        [TestCase("task", true, false)]
+        [TestCase("task", false, true)]
+        [TestCase("task", true, true)]
+#endif
+        public void PositionedCheckout_AppliesPoseBeforeItsOnlyEnable(
+            string api, bool setRotation, bool budgeted)
+        {
+            ObjectPoolLifecycleProbe probe = null;
+            var pool = CreatePool(1, 1, 256,
+                item => probe = item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
+            var queue = new PoolAsyncWorkQueue();
+            if (budgeted) pool.UseAsyncBudget(queue);
+            var position = new Vector3(17f, -3f, 8f);
+            var previousRotation = Quaternion.Euler(0f, 23f, 0f);
+            var rotation = Quaternion.Euler(12f, 67f, -9f);
+            probe.transform.rotation = previousRotation;
+            probe.ObserveOnEnable = true;
+            PoolItem result = null;
+            if (api == "sync")
+                result = setRotation ? pool.Get(position, rotation) : pool.Get(position);
+            else if (api == "callback")
+            {
+                void Ready(PoolItem item)
+                {
+                    probe.Events.Add("ready");
+                    result = item;
+                }
+                if (setRotation) pool.GetAsync(position, rotation, Ready);
+                else pool.GetAsync(position, Ready);
+            }
+#if CODEX_UNITASK_SUPPORT
+            else
+            {
+                var task = setRotation ? pool.GetAsync(position, rotation) : pool.GetAsync(position);
+                if (budgeted)
+                {
+                    Assert.AreEqual(0, probe.EnableObservationCount);
+                    queue.Process(100, 1, 10000);
+                }
+                result = task.GetAwaiter().GetResult();
+            }
+#endif
+            if (budgeted && api == "callback")
+            {
+                Assert.IsNull(result);
+                Assert.AreEqual(0, probe.EnableObservationCount);
+                Assert.AreEqual(0, probe.GetCount);
+                queue.Process(100, 1, 10000);
+            }
+
+            Assert.AreSame(probe.Item, result);
+            Assert.AreEqual(1, probe.EnableObservationCount);
+            Assert.AreEqual(0, probe.DisableObservationCount);
+            Assert.AreEqual(1, probe.GetCount);
+            Assert.IsFalse(probe.ObservedInPoolOnEnable);
+            Assert.AreEqual(position, probe.PositionOnEnable);
+            Assert.AreEqual(position, probe.PositionOnGet);
+            Assert.Less(Quaternion.Angle(setRotation ? rotation : previousRotation, probe.RotationOnEnable), 0.01f);
+            CollectionAssert.AreEqual(api == "callback"
+                ? new[] { "enable", "reset", "ready" }
+                : new[] { "enable", "reset" }, probe.Events);
+        }
+
+        [Test]
+        public void QueuedPositionedRequest_PlacesReturnedItemBeforeReactivation()
+        {
+            ObjectPoolLifecycleProbe probe = null;
+            var pool = CreatePool(1, -1, 1,
+                item => probe = item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
+            probe.ObserveOnEnable = true;
+            var original = pool.Get();
+            pool.GetAsync(_ => { });
+            PoolItem result = null;
+            var position = new Vector3(11f, 12f, 13f);
+            var rotation = Quaternion.Euler(0f, 81f, 0f);
+            pool.GetAsync(position, rotation, item => result = item);
+            Assert.IsNull(result);
+            Assert.AreEqual(1, pool.PendingAsyncCount);
+
+            original.ReturnToPool();
+
+            Assert.AreSame(original, result);
+            Assert.AreEqual(position, probe.PositionOnEnable);
+            Assert.Less(Quaternion.Angle(rotation, probe.RotationOnEnable), 0.01f);
+            Assert.AreEqual(2, probe.EnableObservationCount);
+            Assert.AreEqual(1, probe.DisableObservationCount,
+                "Only the actual return should disable the item.");
+            Assert.AreEqual(0, pool.PendingAsyncCount);
+        }
+
+        [Test]
+        public void BudgetedPositionedRequests_KeepTheirOwnPoseAndCanceledRequestsStayInactive()
+        {
+            var pool = CreatePool(2, 2, 256,
+                item => item.gameObject.AddComponent<ObjectPoolLifecycleProbe>());
+            var queue = new PoolAsyncWorkQueue();
+            pool.UseAsyncBudget(queue);
+            foreach (var item in pool.Items)
+                if (item) item.GetComponent<ObjectPoolLifecycleProbe>().ObserveOnEnable = true;
+            using var cancellation = new CancellationTokenSource();
+            var results = new List<PoolItem>();
+            pool.GetAsync(Vector3.up, _ => Assert.Fail("Canceled request must not be delivered"), cancellation.Token);
+            pool.GetAsync(new Vector3(3f, 4f, 5f), results, static (item, output) => output.Add(item));
+            pool.GetAsync(new Vector3(7f, 8f, 9f), Quaternion.Euler(0f, 90f, 0f),
+                results, static (item, output) => output.Add(item));
+            cancellation.Cancel();
+            queue.Process(100, 1, 10000);
+            Assert.AreEqual(1, results.Count);
+            queue.Process(101, 1, 10000);
+            Assert.AreEqual(2, results.Count);
+            Assert.AreEqual(new Vector3(3f, 4f, 5f), results[0].transform.position);
+            Assert.AreEqual(new Vector3(7f, 8f, 9f), results[1].transform.position);
+            Assert.Less(Quaternion.Angle(Quaternion.Euler(0f, 90f, 0f), results[1].transform.rotation), 0.01f);
+            foreach (var item in results)
+            {
+                var observed = item.GetComponent<ObjectPoolLifecycleProbe>();
+                Assert.AreEqual(1, observed.EnableObservationCount);
+                Assert.AreEqual(0, observed.DisableObservationCount);
+            }
+            Assert.AreEqual(0, pool.PendingAsyncCount);
         }
 
         [Test]

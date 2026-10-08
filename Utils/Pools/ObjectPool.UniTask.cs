@@ -92,33 +92,13 @@ namespace CodexFramework.Utils.Pools
                 return UniTask.FromCanceled<PoolItem>(cancellationToken);
             if (_isDestroying)
                 return UniTask.FromResult<PoolItem>(null);
-            if (_asyncWorkQueue == null && _pendingAsyncCount == 0 && TryGet(out var item))
-            {
-                try
-                {
-                    PlaceLease(item, position, false, default);
-                    return UniTask.FromResult(item);
-                }
-                catch (Exception ex)
-                {
-                    return UniTask.FromException<PoolItem>(ex);
-                }
-            }
+            var placement = new CheckoutPlacement(position);
+            if (_asyncWorkQueue == null && _pendingAsyncCount == 0 && TryGet(out var item, placement))
+                return UniTask.FromResult(item);
 
             var tcs = new UniTaskCompletionSource<PoolItem>();
-            EnqueueAsyncWaiter(result =>
-            {
-                try
-                {
-                    if (result)
-                        PlaceLease(result, position, false, default);
-                    tcs.TrySetResult(result);
-                }
-                catch (Exception ex)
-                {
-                    tcs.TrySetException(ex);
-                }
-            }, forceGrow, cancellationToken, () => tcs.TrySetCanceled(cancellationToken));
+            EnqueueAsyncWaiter(result => tcs.TrySetResult(result),
+                forceGrow, cancellationToken, () => tcs.TrySetCanceled(cancellationToken), placement);
             return tcs.Task;
         }
 
@@ -135,33 +115,13 @@ namespace CodexFramework.Utils.Pools
                 return UniTask.FromCanceled<PoolItem>(cancellationToken);
             if (_isDestroying)
                 return UniTask.FromResult<PoolItem>(null);
-            if (_asyncWorkQueue == null && _pendingAsyncCount == 0 && TryGet(out var item))
-            {
-                try
-                {
-                    PlaceLease(item, position, true, rotation);
-                    return UniTask.FromResult(item);
-                }
-                catch (Exception ex)
-                {
-                    return UniTask.FromException<PoolItem>(ex);
-                }
-            }
+            var placement = new CheckoutPlacement(position, rotation);
+            if (_asyncWorkQueue == null && _pendingAsyncCount == 0 && TryGet(out var item, placement))
+                return UniTask.FromResult(item);
 
             var tcs = new UniTaskCompletionSource<PoolItem>();
-            EnqueueAsyncWaiter(result =>
-            {
-                try
-                {
-                    if (result)
-                        PlaceLease(result, position, true, rotation);
-                    tcs.TrySetResult(result);
-                }
-                catch (Exception ex)
-                {
-                    tcs.TrySetException(ex);
-                }
-            }, forceGrow, cancellationToken, () => tcs.TrySetCanceled(cancellationToken));
+            EnqueueAsyncWaiter(result => tcs.TrySetResult(result),
+                forceGrow, cancellationToken, () => tcs.TrySetCanceled(cancellationToken), placement);
             return tcs.Task;
         }
 
@@ -183,7 +143,7 @@ namespace CodexFramework.Utils.Pools
             CancellationToken cancellationToken,
             bool forceGrow = true) =>
             EnqueueAsyncWaiter(
-                item => FinishGet(item, false, default, false, default, state, onReady),
+                item => onReady?.Invoke(item, state),
                 forceGrow,
                 cancellationToken);
 
@@ -207,9 +167,10 @@ namespace CodexFramework.Utils.Pools
             CancellationToken cancellationToken,
             bool forceGrow = true) =>
             EnqueueAsyncWaiter(
-                item => FinishGet(item, true, position, false, default, state, onReady),
+                item => onReady?.Invoke(item, state),
                 forceGrow,
-                cancellationToken);
+                cancellationToken,
+                placement: new CheckoutPlacement(position));
 
         public void GetAsync(Vector3 position, Quaternion rotation, Action<PoolItem> onReady, bool forceGrow = true) =>
             GetAsync(position, rotation, onReady, CancellationToken.None, forceGrow);
@@ -238,24 +199,10 @@ namespace CodexFramework.Utils.Pools
             CancellationToken cancellationToken,
             bool forceGrow = true) =>
             EnqueueAsyncWaiter(
-                item => FinishGet(item, true, position, true, rotation, state, onReady),
+                item => onReady?.Invoke(item, state),
                 forceGrow,
-                cancellationToken);
-
-        private void FinishGet<TState>(
-            PoolItem item,
-            bool hasPosition,
-            Vector3 position,
-            bool hasRotation,
-            Quaternion rotation,
-            TState state,
-            Action<PoolItem, TState> onReady)
-        {
-            if (item && (hasPosition || hasRotation))
-                PlaceLease(item, position, hasRotation, rotation);
-
-            onReady?.Invoke(item, state);
-        }
+                cancellationToken,
+                placement: new CheckoutPlacement(position, rotation));
 
         private async UniTask GrowAsync(int growPerFrame)
         {

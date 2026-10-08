@@ -53,7 +53,9 @@ namespace CodexFramework.Utils.Pools
         partial void BeginInitialGrow();
         partial void StartGrowIfNeeded();
 
-        public bool TryGet(out PoolItem item)
+        public bool TryGet(out PoolItem item) => TryGet(out item, default);
+
+        private bool TryGet(out PoolItem item, CheckoutPlacement placement)
         {
             if (_isDestroying)
             {
@@ -73,6 +75,8 @@ namespace CodexFramework.Utils.Pools
                 _firstAvailable++;
                 try
                 {
+                    // OnEnable and reset callbacks must observe the requested pose.
+                    placement.Apply(item);
                     item.gameObject.SetActive(true);
                     ThrowIfLeaseWasReleased(item, leaseVersion);
                     item.InvokeOnGetCallbacks();
@@ -134,7 +138,9 @@ namespace CodexFramework.Utils.Pools
             BeginInitialGrow();
         }
 
-        public PoolItem Get(bool forceGrow = true)
+        public PoolItem Get(bool forceGrow = true) => Get(forceGrow, default);
+
+        private PoolItem Get(bool forceGrow, CheckoutPlacement placement)
         {
             if (_isDestroying)
                 return null;
@@ -143,7 +149,7 @@ namespace CodexFramework.Utils.Pools
             if (_firstAvailable > _allocatedCount)
                 throw new Exception("active pool count can't be bigger than allocated count");
 #endif
-            if (TryGet(out var item))
+            if (TryGet(out var item, placement))
                 return item;
 
             if (_maxCount > 0)
@@ -153,14 +159,14 @@ namespace CodexFramework.Utils.Pools
                     if (!forceGrow)
                         return null;
                     AddNew(_allocatedCount);
-                    return TryGet(out item) ? item : null;
+                    return TryGet(out item, placement) ? item : null;
                 }
 
                 // Reclaimed items are offered to async waiters first; keep reclaiming until
                 // this sync get can take one or nothing is left to reclaim.
                 while (TryReclaimOne())
                 {
-                    if (TryGet(out item))
+                    if (TryGet(out item, placement))
                         return item;
                 }
 #if DEBUG
@@ -177,56 +183,21 @@ namespace CodexFramework.Utils.Pools
                 throw new Exception("can't grow fixed pool");
 #endif
             RequestGrow(DesiredSizeForGets(1));
-            if (TryGet(out item))
+            if (TryGet(out item, placement))
                 return item;
 
             // Synchronous callers retain their historical force-grow behavior even when the
             // asynchronous grow batch has already spent this frame's budget.
             if (_allocatedCount < _growTarget)
                 AddNew(_allocatedCount);
-            return TryGet(out item) ? item : null;
+            return TryGet(out item, placement) ? item : null;
         }
 
-        public PoolItem Get(Vector3 position, bool forceGrow = true)
-        {
-            var item = Get(forceGrow);
-            if (item)
-                PlaceLease(item, position, false, default);
-            return item;
-        }
+        public PoolItem Get(Vector3 position, bool forceGrow = true) =>
+            Get(forceGrow, new CheckoutPlacement(position));
 
-        public PoolItem Get(Vector3 position, Quaternion rotation, bool forceGrow = true)
-        {
-            var item = Get(forceGrow);
-            if (item)
-                PlaceLease(item, position, true, rotation);
-            return item;
-        }
-
-        private void PlaceLease(
-            PoolItem item,
-            Vector3 position,
-            bool hasRotation,
-            Quaternion rotation)
-        {
-            var leaseVersion = item.LeaseVersion;
-            try
-            {
-                item.gameObject.SetActive(false);
-                ThrowIfLeaseWasReleased(item, leaseVersion);
-                if (hasRotation)
-                    item.transform.SetPositionAndRotation(position, rotation);
-                else
-                    item.transform.position = position;
-                item.gameObject.SetActive(true);
-                ThrowIfLeaseWasReleased(item, leaseVersion);
-            }
-            catch
-            {
-                ReturnFailedCheckoutIfStillOwned(item, leaseVersion);
-                throw;
-            }
-        }
+        public PoolItem Get(Vector3 position, Quaternion rotation, bool forceGrow = true) =>
+            Get(forceGrow, new CheckoutPlacement(position, rotation));
 
         /// <summary>
         /// Schedules warmup without checking out items, then reserves another batch whenever
@@ -338,7 +309,8 @@ namespace CodexFramework.Utils.Pools
             Action<PoolItem> onReady,
             bool forceGrow,
             CancellationToken cancellationToken = default,
-            Action onCanceled = null)
+            Action onCanceled = null,
+            CheckoutPlacement placement = default)
         {
             if (onReady == null)
                 throw new ArgumentNullException(nameof(onReady));
@@ -356,7 +328,7 @@ namespace CodexFramework.Utils.Pools
             if (_asyncWorkQueue != null)
             {
                 // Budgeted pools admit activation, reset hooks and the callback together.
-                var waiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, forceGrow);
+                var waiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, forceGrow, placement);
                 _asyncWaiters.Enqueue(waiter);
                 _pendingAsyncCount++;
                 if (forceGrow) _pendingGrowthCount++;
@@ -366,7 +338,7 @@ namespace CodexFramework.Utils.Pools
                 return;
             }
 
-            if (_pendingAsyncCount == 0 && TryGet(out var item))
+            if (_pendingAsyncCount == 0 && TryGet(out var item, placement))
             {
                 CompleteImmediate(onReady, onCanceled, cancellationToken, item);
                 return;
@@ -374,7 +346,7 @@ namespace CodexFramework.Utils.Pools
 
             if (_maxCount > 0 && _allocatedCount >= _maxCount)
             {
-                if (TryReclaimOne() && _pendingAsyncCount == 0 && TryGet(out item))
+                if (TryReclaimOne() && _pendingAsyncCount == 0 && TryGet(out item, placement))
                 {
                     CompleteImmediate(onReady, onCanceled, cancellationToken, item);
                     return;
@@ -390,7 +362,7 @@ namespace CodexFramework.Utils.Pools
                 return;
             }
 
-            var queuedWaiter = new AsyncWaiter(onReady, onCanceled, cancellationToken);
+            var queuedWaiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, placement: placement);
             _asyncWaiters.Enqueue(queuedWaiter);
             _pendingAsyncCount++;
             _pendingGrowthCount++;
@@ -425,7 +397,7 @@ namespace CodexFramework.Utils.Pools
                         continue;
                     }
 
-                    if (!TryGet(out var item))
+                    if (!TryGet(out var item, waiter.Placement))
                     {
                         if (_maxCount > 0 && _allocatedCount >= _maxCount && TryReclaimOne())
                             continue;
@@ -464,10 +436,10 @@ namespace CodexFramework.Utils.Pools
                 PruneCanceledAsyncWaiters();
                 if (_pendingAsyncCount == 0) return false;
                 var waiter = _asyncWaiters.Peek();
-                if (!TryGet(out var item))
+                if (!TryGet(out var item, waiter.Placement))
                 {
                     var fixedAndFull = _maxCount > 0 && _allocatedCount >= _maxCount;
-                    if (!fixedAndFull || !TryReclaimOne() || !TryGet(out item))
+                    if (!fixedAndFull || !TryReclaimOne() || !TryGet(out item, waiter.Placement))
                     {
                         if (waiter.ForceGrow && !fixedAndFull) return false;
                         _asyncWaiters.Dequeue();
@@ -806,6 +778,38 @@ namespace CodexFramework.Utils.Pools
             FailAllAsyncWaiters();
         }
 
+        private readonly struct CheckoutPlacement
+        {
+            private readonly bool _hasPosition;
+            private readonly bool _hasRotation;
+            private readonly Vector3 _position;
+            private readonly Quaternion _rotation;
+
+            public CheckoutPlacement(Vector3 position)
+            {
+                _hasPosition = true;
+                _hasRotation = false;
+                _position = position;
+                _rotation = default;
+            }
+
+            public CheckoutPlacement(Vector3 position, Quaternion rotation)
+            {
+                _hasPosition = true;
+                _hasRotation = true;
+                _position = position;
+                _rotation = rotation;
+            }
+
+            public void Apply(PoolItem item)
+            {
+                if (_hasRotation)
+                    item.transform.SetPositionAndRotation(_position, _rotation);
+                else if (_hasPosition)
+                    item.transform.position = _position;
+            }
+        }
+
         private sealed class AsyncWaiter
         {
             private readonly Action<PoolItem> _onReady;
@@ -817,13 +821,16 @@ namespace CodexFramework.Utils.Pools
                 !_isCompleted && _cancellationToken.IsCancellationRequested;
             public bool CanBeCanceled => _cancellationToken.CanBeCanceled;
             public bool ForceGrow { get; }
+            public CheckoutPlacement Placement { get; }
 
             public AsyncWaiter(
                 Action<PoolItem> onReady,
                 Action onCanceled,
-                CancellationToken cancellationToken, bool forceGrow = true)
+                CancellationToken cancellationToken, bool forceGrow = true,
+                CheckoutPlacement placement = default)
             {
                 ForceGrow = forceGrow;
+                Placement = placement;
                 _onReady = onReady;
                 _onCanceled = onCanceled;
                 _cancellationToken = cancellationToken;

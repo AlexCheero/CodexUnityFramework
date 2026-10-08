@@ -43,12 +43,8 @@ namespace CodexFramework.Utils.Pools
             Action<PoolItem> onReady,
             CancellationToken cancellationToken,
             bool forceGrow = true) =>
-            EnqueueAsyncWaiter(item =>
-            {
-                if (item != null)
-                    PlaceLease(item, position, false, default);
-                onReady?.Invoke(item);
-            }, forceGrow, cancellationToken);
+            EnqueueAsyncWaiter(item => onReady?.Invoke(item), forceGrow, cancellationToken,
+                placement: new CheckoutPlacement(position));
 
         public void GetAsync<TState>(Vector3 position, TState state, Action<PoolItem, TState> onReady, bool forceGrow = true) =>
             GetAsync(position, state, onReady, CancellationToken.None, forceGrow);
@@ -59,12 +55,8 @@ namespace CodexFramework.Utils.Pools
             Action<PoolItem, TState> onReady,
             CancellationToken cancellationToken,
             bool forceGrow = true) =>
-            EnqueueAsyncWaiter(item =>
-            {
-                if (item != null)
-                    PlaceLease(item, position, false, default);
-                onReady?.Invoke(item, state);
-            }, forceGrow, cancellationToken);
+            EnqueueAsyncWaiter(item => onReady?.Invoke(item, state), forceGrow, cancellationToken,
+                placement: new CheckoutPlacement(position));
 
         public void GetAsync(Vector3 position, Quaternion rotation, Action<PoolItem> onReady, bool forceGrow = true) =>
             GetAsync(position, rotation, onReady, CancellationToken.None, forceGrow);
@@ -75,12 +67,8 @@ namespace CodexFramework.Utils.Pools
             Action<PoolItem> onReady,
             CancellationToken cancellationToken,
             bool forceGrow = true) =>
-            EnqueueAsyncWaiter(item =>
-            {
-                if (item != null)
-                    PlaceLease(item, position, true, rotation);
-                onReady?.Invoke(item);
-            }, forceGrow, cancellationToken);
+            EnqueueAsyncWaiter(item => onReady?.Invoke(item), forceGrow, cancellationToken,
+                placement: new CheckoutPlacement(position, rotation));
 
         public void GetAsync<TState>(
             Vector3 position,
@@ -97,12 +85,8 @@ namespace CodexFramework.Utils.Pools
             Action<PoolItem, TState> onReady,
             CancellationToken cancellationToken,
             bool forceGrow = true) =>
-            EnqueueAsyncWaiter(item =>
-            {
-                if (item != null)
-                    PlaceLease(item, position, true, rotation);
-                onReady?.Invoke(item, state);
-            }, forceGrow, cancellationToken);
+            EnqueueAsyncWaiter(item => onReady?.Invoke(item, state), forceGrow, cancellationToken,
+                placement: new CheckoutPlacement(position, rotation));
 
         private IEnumerator GrowRoutine(int growPerFrame)
         {
