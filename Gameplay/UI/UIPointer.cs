@@ -47,7 +47,8 @@ namespace CodexFramework.Gameplay.UI
             var angle = Vector3.Angle(direction, Vector3.right);
             if (Vector3.Dot(direction, Vector3.up) < 0)
                 angle *= -1;
-            rectTransform.eulerAngles = new Vector3(0, 0, angle);
+            var rotation = Quaternion.Euler(0, 0, angle);
+            if (rectTransform.rotation != rotation) rectTransform.rotation = rotation;
 
             var pointerScreenPoint = targetScreenPoint - rectTransform.right * MinDistance;
             const float minCoordinate = 0.1f;
@@ -61,7 +62,7 @@ namespace CodexFramework.Gameplay.UI
             var distanceDelta = (1 - Mathf.Sin(Time.time * _wiggleSpeed)) * _wiggleScale;
             pointerScreenPoint -= rectTransform.right * distanceDelta;
 
-            rectTransform.position = pointerScreenPoint;
+            if (!rectTransform.position.Equals(pointerScreenPoint)) rectTransform.position = pointerScreenPoint;
         }
     }
 }

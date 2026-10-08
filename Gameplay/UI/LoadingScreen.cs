@@ -60,6 +60,7 @@ namespace CodexFramework.Gameplay.UI
         private readonly System.Random _random = new System.Random();
         private bool _initialized;
         private bool _failed;
+        private int _displayedPercent = -1;
 
         public float Progress { get; private set; }
 
@@ -103,6 +104,7 @@ namespace CodexFramework.Gameplay.UI
             if (_loadingTextAccessor != null)
                 _loadingTextAccessor.Text = _initialLoadingString;
             Progress = 0f;
+            _displayedPercent = -1;
             SetProgress(0f);
             _loadingAnimationCD = _loadingAnimationDelay;
             _loadingChangeBGCD = _loadingChangeBGDelay;
@@ -116,10 +118,13 @@ namespace CodexFramework.Gameplay.UI
             EnsureInitialized();
             if (float.IsNaN(value))
                 return;
-            Progress = Mathf.Max(Progress, Mathf.Clamp01(value));
-            _progressBar.fillAmount = Progress;
-            if (_progressTextAccessor != null)
-                _progressTextAccessor.Text = $"{Mathf.FloorToInt(Progress * 100f)}%";
+            var progress = Mathf.Max(Progress, Mathf.Clamp01(value));
+            if (_progressBar.fillAmount != progress) _progressBar.fillAmount = progress;
+            Progress = progress;
+            var percent = Mathf.FloorToInt(Progress * 100f);
+            if (_displayedPercent == percent) return;
+            _displayedPercent = percent;
+            if (_progressTextAccessor != null) _progressTextAccessor.Text = $"{percent}%";
         }
 
         public void ShowFailure(string message)
@@ -158,7 +163,9 @@ namespace CodexFramework.Gameplay.UI
         {
             if (_bg == null)
                 return;
+            var previous = _currentBgSpriteIdx;
             _currentBgSpriteIdx = NextIndex(_bgSprites, _currentBgSpriteIdx, sprite => sprite != null);
+            if (_currentBgSpriteIdx == previous) return;
             if (_currentBgSpriteIdx >= 0)
                 _bg.sprite = _bgSprites[_currentBgSpriteIdx];
         }
@@ -169,7 +176,8 @@ namespace CodexFramework.Gameplay.UI
                 return;
             _currentTooltipIdx = NextIndex(_tooltipTexts, _currentTooltipIdx,
                 text => !string.IsNullOrWhiteSpace(text));
-            _tooltipTextAccessor.Text = _currentTooltipIdx >= 0 ? _tooltipTexts[_currentTooltipIdx] : string.Empty;
+            var text = _currentTooltipIdx >= 0 ? _tooltipTexts[_currentTooltipIdx] : string.Empty;
+            if (_tooltipTextAccessor.Text != text) _tooltipTextAccessor.Text = text;
         }
 
         private int NextIndex<T>(T[] entries, int current, Func<T, bool> isValid)

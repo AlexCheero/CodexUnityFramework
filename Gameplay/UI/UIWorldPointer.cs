@@ -38,7 +38,8 @@ namespace CodexFramework.Gameplay.UI
                 : ClampBackScreenPoint(-centeredScreenPoint, _rect);
 
             var clampedScreenPoint3 = new Vector3(clampedScreenPoint.x, clampedScreenPoint.y, 0f);
-            transform.position = clampedScreenPoint3 + screenCenter;
+            var position = clampedScreenPoint3 + screenCenter;
+            if (!transform.position.Equals(position)) transform.position = position;
         }
 
         public static Vector2 ClampScreenPoint(Vector2 point, Rect rect)
