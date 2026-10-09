@@ -100,7 +100,10 @@ namespace CodexFramework.Utils.Pools
             for (var i = 0; i < _children.Length; i++)
                 _children[i].Reapply();
 
-            // RestoreJointConnections();
+            // Checkout activates at the requested position before this reset. Rebuild
+            // anchors only after restoring the bones, never from the previous scattered
+            // pose on return. There is no second activation to recreate the joints.
+            RestoreJointConnections();
 
             for (var i = 0; i < _rigidbodies.Length; i++)
             {
@@ -130,7 +133,6 @@ namespace CodexFramework.Utils.Pools
             ResetVisualState();
             RestoreBorrowedDummies();
             DeactivateDummies();
-            RestoreJointConnections();
             EnqueueReturnReset(this);
         }
 
