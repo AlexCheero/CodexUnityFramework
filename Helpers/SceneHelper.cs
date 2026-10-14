@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using CodexFramework.CodexEcsUnityIntegration;
@@ -65,18 +65,21 @@ namespace CodexFramework.Scenes
         {
             if (ECSPipelineController.IsCreated)
                 ECSPipelineController.Instance.Pause();
-            if (LoadingScreen.IsCreated)
-                LoadingScreen.Instance.gameObject.SetActive(true);
+            var loadingScreen = LoadingScreen.Instance;
+            loadingScreen.Show(levelName);
+            yield return null;
 
             var asyncOp = SceneManager.LoadSceneAsync(levelName, loadMode);
             asyncOp.allowSceneActivation = false;
 
-            while (minLoadTime > 0)
+            while (minLoadTime > 0 || asyncOp.progress < 0.9f)
             {
-                minLoadTime -= Time.deltaTime;
+                minLoadTime -= Time.unscaledDeltaTime;
+                loadingScreen.SetProgress(asyncOp.progress / 0.9f);
                 yield return null;
             }
 
+            loadingScreen.SetProgress(1f);
             asyncOp.allowSceneActivation = true;
             asyncOp.completed += _ =>
             {

@@ -36,18 +36,21 @@ namespace CodexFramework.Scenes
 
                 if (ECSPipelineController.IsCreated)
                     ECSPipelineController.Instance.Pause();
-                if (LoadingScreen.IsCreated)
-                    LoadingScreen.Instance.gameObject.SetActive(true);
+                var loadingScreen = LoadingScreen.Instance;
+                loadingScreen.Show(levelName);
+                await UniTask.NextFrame(cancellationToken: cancellationToken);
 
                 var asyncOp = SceneManager.LoadSceneAsync(levelName, loadMode);
                 asyncOp.allowSceneActivation = false;
 
-                while (minLoadTime > 0)
+                while (minLoadTime > 0 || asyncOp.progress < 0.9f)
                 {
-                    minLoadTime -= Time.deltaTime;
+                    minLoadTime -= Time.unscaledDeltaTime;
+                    loadingScreen.SetProgress(asyncOp.progress / 0.9f);
                     await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
                 }
 
+                loadingScreen.SetProgress(1f);
                 asyncOp.allowSceneActivation = true;
                 await asyncOp.ToUniTask(cancellationToken: cancellationToken);
 

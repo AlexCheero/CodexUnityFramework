@@ -1,8 +1,9 @@
 using System;
+using System.IO;
 using System.Reflection;
-using System.Text;
 using CodexFramework.Utils;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace CodexFramework.Gameplay.UI
@@ -19,22 +20,25 @@ namespace CodexFramework.Gameplay.UI
 
     public class LoadingScreen : Singleton<LoadingScreen>
     {
-        [Header("Loading status")]
+        [Serializable]
+        private sealed class SceneBackgrounds
+        {
+            public string SceneName;
+            public Sprite[] Sprites;
+        }
+
+        [Header("Loading progress and failure")]
         [SerializeField]
-        private MonoBehaviour _loadingText;
-        [SerializeField, Min(0.05f)]
-        private float _loadingAnimationDelay = 0.5f;
+        private MonoBehaviour _failureText;
         [SerializeField]
         private Image _progressBar;
-        [SerializeField]
-        private MonoBehaviour _progressText;
         [Header("Backgrounds")]
         [SerializeField]
         private Image _backgroundImage;
         [SerializeField, Min(0.05f)]
         private float _loadingChangeBGDelay = 3.0f;
         [SerializeField]
-        private Sprite[] _bgSprites = Array.Empty<Sprite>();
+        private SceneBackgrounds[] _sceneBackgrounds;
         [Header("Tooltips")]
         [SerializeField]
         private MonoBehaviour _tooltipText;
@@ -43,24 +47,18 @@ namespace CodexFramework.Gameplay.UI
         [SerializeField, Min(0.05f)]
         private float _tooltipChangeDelay = 5.0f;
 
-        private Image _bg;
+        private Sprite[] _bgSprites;
+        private string _destinationScene;
 
-        private string _initialLoadingString;
-        private StringBuilder _loadingStringBuilder;
-        private const int MaxDotsCount = 3;
-        private int _currentDotsCount;
-        private float _loadingAnimationCD;
         private float _loadingChangeBGCD;
         private float _tooltipChangeCD;
         private int _currentBgSpriteIdx = -1;
         private int _currentTooltipIdx = -1;
-        private ILoadingScreenText _loadingTextAccessor;
+        private ILoadingScreenText _failureTextAccessor;
         private ILoadingScreenText _tooltipTextAccessor;
-        private ILoadingScreenText _progressTextAccessor;
         private readonly System.Random _random = new System.Random();
         private bool _initialized;
         private bool _failed;
-        private int _displayedPercent = -1;
 
         public float Progress { get; private set; }
 
@@ -75,18 +73,15 @@ namespace CodexFramework.Gameplay.UI
             if (_initialized)
                 return;
             _initialized = true;
-            _bg = _backgroundImage != null ? _backgroundImage : GetComponent<Image>();
-            _loadingTextAccessor = _loadingText != null ? ResolveLoadingText(_loadingText) : null;
-            _tooltipTextAccessor = _tooltipText != null ? ResolveLoadingText(_tooltipText) : null;
-            _progressTextAccessor = _progressText != null ? ResolveLoadingText(_progressText) : null;
-            _initialLoadingString = _loadingTextAccessor?.Text ?? "Loading";
-            _loadingStringBuilder = new StringBuilder();
+            _failureTextAccessor = ResolveLoadingText(_failureText);
+            _tooltipTextAccessor = ResolveLoadingText(_tooltipText);
         }
 
         private void OnEnable() => BeginLoading();
 
-        public void Show()
+        public void Show(string destinationScene)
         {
+            _destinationScene = Path.GetFileNameWithoutExtension(destinationScene);
             transform.SetAsLastSibling();
             if (gameObject.activeSelf)
                 BeginLoading();
@@ -99,14 +94,15 @@ namespace CodexFramework.Gameplay.UI
         private void BeginLoading()
         {
             EnsureInitialized();
+            var sceneName = _destinationScene ?? SceneManager.GetActiveScene().name;
+            var backgrounds = _sceneBackgrounds == null ? null : Array.Find(_sceneBackgrounds,
+                entry => entry != null && entry.SceneName == sceneName);
+            _bgSprites = backgrounds?.Sprites ?? Array.Empty<Sprite>();
+            _currentBgSpriteIdx = -1;
             _failed = false;
-            _currentDotsCount = 0;
-            if (_loadingTextAccessor != null)
-                _loadingTextAccessor.Text = _initialLoadingString;
+            _failureText.gameObject.SetActive(false);
             Progress = 0f;
-            _displayedPercent = -1;
             SetProgress(0f);
-            _loadingAnimationCD = _loadingAnimationDelay;
             _loadingChangeBGCD = _loadingChangeBGDelay;
             _tooltipChangeCD = _tooltipChangeDelay;
             ChangeBackground();
@@ -121,38 +117,28 @@ namespace CodexFramework.Gameplay.UI
             var progress = Mathf.Max(Progress, Mathf.Clamp01(value));
             if (_progressBar.fillAmount != progress) _progressBar.fillAmount = progress;
             Progress = progress;
-            var percent = Mathf.FloorToInt(Progress * 100f);
-            if (_displayedPercent == percent) return;
-            _displayedPercent = percent;
-            if (_progressTextAccessor != null) _progressTextAccessor.Text = $"{percent}%";
         }
 
         public void ShowFailure(string message)
         {
             EnsureInitialized();
             _failed = true;
-            if (_loadingTextAccessor != null)
-                _loadingTextAccessor.Text = message;
+            _failureText.gameObject.SetActive(true);
+            _failureTextAccessor.Text = message;
+            _tooltipText.gameObject.SetActive(false);
         }
 
         void Update()
         {
-            _loadingAnimationCD -= Time.unscaledDeltaTime;
             _loadingChangeBGCD -= Time.unscaledDeltaTime;
             _tooltipChangeCD -= Time.unscaledDeltaTime;
-
-            if (!_failed && _loadingAnimationCD <= 0)
-            {
-                AnimateText();
-                _loadingAnimationCD = Mathf.Max(0.05f, _loadingAnimationDelay);
-            }
 
             if (_loadingChangeBGCD <= 0)
             {
                 ChangeBackground();
                 _loadingChangeBGCD = Mathf.Max(0.05f, _loadingChangeBGDelay);
             }
-            if (_tooltipChangeCD <= 0)
+            if (!_failed && _tooltipChangeCD <= 0)
             {
                 ChangeTooltip();
                 _tooltipChangeCD = Mathf.Max(0.05f, _tooltipChangeDelay);
@@ -161,19 +147,22 @@ namespace CodexFramework.Gameplay.UI
 
         private void ChangeBackground()
         {
-            if (_bg == null)
+            var next = NextIndex(_bgSprites, _currentBgSpriteIdx, sprite => sprite != null);
+            if (next < 0)
+            {
+                _backgroundImage.sprite = null;
+                _backgroundImage.color = Color.black;
                 return;
-            var previous = _currentBgSpriteIdx;
-            _currentBgSpriteIdx = NextIndex(_bgSprites, _currentBgSpriteIdx, sprite => sprite != null);
-            if (_currentBgSpriteIdx == previous) return;
-            if (_currentBgSpriteIdx >= 0)
-                _bg.sprite = _bgSprites[_currentBgSpriteIdx];
+            }
+            if (next == _currentBgSpriteIdx) return;
+            _currentBgSpriteIdx = next;
+            _backgroundImage.sprite = _bgSprites[next];
+            _backgroundImage.color = Color.white;
         }
 
         private void ChangeTooltip()
         {
-            if (_tooltipTextAccessor == null)
-                return;
+            _tooltipText.gameObject.SetActive(true);
             _currentTooltipIdx = NextIndex(_tooltipTexts, _currentTooltipIdx,
                 text => !string.IsNullOrWhiteSpace(text));
             var text = _currentTooltipIdx >= 0 ? _tooltipTexts[_currentTooltipIdx] : string.Empty;
@@ -195,19 +184,6 @@ namespace CodexFramework.Gameplay.UI
             }
             return selected >= 0 ? selected :
                 current >= 0 && current < entries.Length && isValid(entries[current]) ? current : -1;
-        }
-
-        private void AnimateText()
-        {
-            if (_loadingTextAccessor == null)
-                return;
-            _loadingStringBuilder.Clear();
-            _loadingStringBuilder.Append(_initialLoadingString);
-            _currentDotsCount++;
-            _currentDotsCount %= MaxDotsCount + 1;
-            for (int i = 0; i < _currentDotsCount; i++)
-                _loadingStringBuilder.Append('.');
-            _loadingTextAccessor.Text = _loadingStringBuilder.ToString();
         }
 
         private static ILoadingScreenText ResolveLoadingText(MonoBehaviour component)
