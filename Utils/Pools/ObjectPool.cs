@@ -627,7 +627,13 @@ namespace CodexFramework.Utils.Pools
 
         private void RepairDestroyedItemsIfNeeded()
         {
-            if (!_itemsDirty || _items == null)
+            if (_items == null)
+                return;
+            // Unity does not send OnDestroy for instances that have never been active.
+            // Check the next checkout and tail in constant time; only compact after a death.
+            if (!_itemsDirty && (_allocatedCount == 0 ||
+                _items[_allocatedCount - 1] &&
+                (_firstAvailable >= _allocatedCount || _items[_firstAvailable])))
                 return;
             _itemsDirty = false;
 

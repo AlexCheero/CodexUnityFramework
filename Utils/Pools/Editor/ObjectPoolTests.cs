@@ -883,6 +883,20 @@ namespace CodexFramework.Utils.Pools.Editor
         }
 
         [Test]
+        public void DestroyedNeverActivatedMiddleSlotCannotBeCheckedOut()
+        {
+            var pool = CreatePool(3, 3, 256);
+            var first = pool.Items[0];
+            var last = pool.Items[2];
+            Object.DestroyImmediate(pool.Items[1].gameObject);
+            Assert.AreSame(first, pool.Get());
+            Assert.AreSame(last, pool.Get());
+            Assert.AreEqual(2, pool.Allocated);
+            Assert.AreEqual(2, pool.ActiveCount);
+            Assert.AreEqual(1, last.Idx);
+        }
+
+        [Test]
         public void ForceGrowFalse_CompletesImmediatelyWithNullWithoutChangingDemand()
         {
             var pool = CreatePool(1, -1, 1);
