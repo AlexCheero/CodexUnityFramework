@@ -20,6 +20,7 @@ namespace CodexFramework.Gameplay.UI
 
     public class LoadingScreen : Singleton<LoadingScreen>
     {
+        public static Func<string, string> TooltipOverride { get; set; }
         [Serializable]
         private sealed class SceneBackgrounds
         {
@@ -49,6 +50,7 @@ namespace CodexFramework.Gameplay.UI
 
         private Sprite[] _bgSprites;
         private string _destinationScene;
+        private string _fixedTooltip;
 
         private float _loadingChangeBGCD;
         private float _tooltipChangeCD;
@@ -95,6 +97,7 @@ namespace CodexFramework.Gameplay.UI
         {
             EnsureInitialized();
             var sceneName = _destinationScene ?? SceneManager.GetActiveScene().name;
+            _fixedTooltip = TooltipOverride?.Invoke(sceneName);
             var backgrounds = _sceneBackgrounds == null ? null : Array.Find(_sceneBackgrounds,
                 entry => entry != null && entry.SceneName == sceneName);
             _bgSprites = backgrounds?.Sprites ?? Array.Empty<Sprite>();
@@ -163,6 +166,11 @@ namespace CodexFramework.Gameplay.UI
         private void ChangeTooltip()
         {
             _tooltipText.gameObject.SetActive(true);
+            if (!string.IsNullOrEmpty(_fixedTooltip))
+            {
+                if (_tooltipTextAccessor.Text != _fixedTooltip) _tooltipTextAccessor.Text = _fixedTooltip;
+                return;
+            }
             _currentTooltipIdx = NextIndex(_tooltipTexts, _currentTooltipIdx,
                 text => !string.IsNullOrWhiteSpace(text));
             var text = _currentTooltipIdx >= 0 ? _tooltipTexts[_currentTooltipIdx] : string.Empty;
