@@ -32,6 +32,7 @@ namespace CodexFramework.Scenes
         // Cross-assembly extension point: other projects can subscribe to these.
         public static event Action<string> SceneLoadStarted;
         public static event Action<string> SceneLoadCompleted;
+        public static Func<string, bool> PreparesContentAfterActivation { get; set; }
 
         // In-assembly extension point (compile-time, zero cost if unimplemented).
         static partial void OnSceneLoadStarted(string name);
@@ -80,6 +81,14 @@ namespace CodexFramework.Scenes
             }
 
             loadingScreen.SetProgress(1f);
+            if (PreparesContentAfterActivation?.Invoke(levelName) != true)
+            {
+                loadingScreen.CompleteLoading();
+                Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+                yield return new WaitUntil(() => loadingScreen.ContinueRequested);
+            }
             asyncOp.allowSceneActivation = true;
             asyncOp.completed += _ =>
             {

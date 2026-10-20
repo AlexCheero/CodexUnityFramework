@@ -51,6 +51,14 @@ namespace CodexFramework.Scenes
                 }
 
                 loadingScreen.SetProgress(1f);
+                if (PreparesContentAfterActivation?.Invoke(levelName) != true)
+                {
+                    loadingScreen.CompleteLoading();
+                    Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    await UniTask.WaitUntil(() => loadingScreen.ContinueRequested, cancellationToken: cancellationToken);
+                }
                 asyncOp.allowSceneActivation = true;
                 await asyncOp.ToUniTask(cancellationToken: cancellationToken);
 

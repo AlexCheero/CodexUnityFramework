@@ -47,6 +47,7 @@ namespace CodexFramework.Gameplay.UI
         private string[] _tooltipTexts = Array.Empty<string>();
         [SerializeField, Min(0.05f)]
         private float _tooltipChangeDelay = 5.0f;
+        [SerializeField] private Button _continueButton;
 
         private Sprite[] _bgSprites;
         private string _destinationScene;
@@ -61,6 +62,8 @@ namespace CodexFramework.Gameplay.UI
         private readonly System.Random _random = new System.Random();
         private bool _initialized;
         private bool _failed;
+        private bool _ready;
+        public bool ContinueRequested { get; private set; }
 
         public float Progress { get; private set; }
 
@@ -77,6 +80,7 @@ namespace CodexFramework.Gameplay.UI
             _initialized = true;
             _failureTextAccessor = ResolveLoadingText(_failureText);
             _tooltipTextAccessor = ResolveLoadingText(_tooltipText);
+            _continueButton.onClick.AddListener(Continue);
         }
 
         private void OnEnable() => BeginLoading();
@@ -103,6 +107,9 @@ namespace CodexFramework.Gameplay.UI
             _bgSprites = backgrounds?.Sprites ?? Array.Empty<Sprite>();
             _currentBgSpriteIdx = -1;
             _failed = false;
+            _ready = false;
+            ContinueRequested = false;
+            _continueButton.gameObject.SetActive(false);
             _failureText.gameObject.SetActive(false);
             Progress = 0f;
             SetProgress(0f);
@@ -126,9 +133,25 @@ namespace CodexFramework.Gameplay.UI
         {
             EnsureInitialized();
             _failed = true;
+            _continueButton.gameObject.SetActive(false);
             _failureText.gameObject.SetActive(true);
             _failureTextAccessor.Text = message;
             _tooltipText.gameObject.SetActive(false);
+        }
+
+        public void CompleteLoading()
+        {
+            SetProgress(1f);
+            _ready = true;
+            _continueButton.gameObject.SetActive(true);
+            _continueButton.Select();
+        }
+
+        public void Continue()
+        {
+            if (!_ready || _failed || ContinueRequested) return;
+            ContinueRequested = true;
+            _continueButton.gameObject.SetActive(false);
         }
 
         void Update()
@@ -141,7 +164,7 @@ namespace CodexFramework.Gameplay.UI
                 ChangeBackground();
                 _loadingChangeBGCD = Mathf.Max(0.05f, _loadingChangeBGDelay);
             }
-            if (!_failed && _tooltipChangeCD <= 0)
+            if (!_failed && !_ready && _tooltipChangeCD <= 0)
             {
                 ChangeTooltip();
                 _tooltipChangeCD = Mathf.Max(0.05f, _tooltipChangeDelay);
