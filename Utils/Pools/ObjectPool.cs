@@ -28,19 +28,43 @@ namespace CodexFramework.Utils.Pools
         private int _pendingAsyncCount;
         private int _pendingGrowthCount;
         private PoolAsyncWorkQueue _asyncWorkQueue;
+        private int _budgetGrowthFrame = -1;
+        private int _budgetGrowthCount;
         private int _cancellableAsyncCount;
         private readonly Queue<AsyncWaiter> _asyncWaiters = new();
 
-        /// <summary>Assigns this pool to a shared checkout budget, pumped by its owner.</summary>
+        /// <summary>Assign before Init to budget initial allocation as well as async checkouts.</summary>
         public void UseAsyncBudget(PoolAsyncWorkQueue queue)
         {
             if (_asyncWorkQueue != null && !ReferenceEquals(_asyncWorkQueue, queue))
                 throw new InvalidOperationException("A pool cannot change its async budget owner.");
             _asyncWorkQueue = queue ?? throw new ArgumentNullException(nameof(queue));
-            if (_pendingAsyncCount > 0) queue.Schedule(this);
+            if (HasBudgetedWork) queue.Schedule(this);
         }
 
         public PoolItem Prototype => _prototype;
+        public int Priority => _prototype.Priority;
+        internal bool HasBudgetedWork => !_isDestroying && (_pendingAsyncCount > 0 || _allocatedCount < _growTarget);
+
+        private bool ScheduleSharedGrowth()
+        {
+            if (_asyncWorkQueue == null) return false;
+            if (HasBudgetedWork) _asyncWorkQueue.Schedule(this);
+            return true;
+        }
+
+        internal bool ProcessBudgetedWork(int frame)
+        {
+            if (ProcessBudgetedWaiter()) return true;
+            if (_budgetGrowthFrame != frame)
+            {
+                _budgetGrowthFrame = frame;
+                _budgetGrowthCount = 0;
+            }
+            if (_budgetGrowthCount >= _growPerFrame || !PrepareGrowBatch()) return false;
+            _budgetGrowthCount++;
+            return TryGrowOne();
+        }
         public int Allocated => _allocatedCount;
         public int Capacity => _items?.Length ?? 0;
         public int ActiveCount => _firstAvailable;

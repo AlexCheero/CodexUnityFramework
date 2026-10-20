@@ -15,6 +15,7 @@ namespace CodexFramework.Utils.Pools
 
         partial void StartGrowIfNeeded()
         {
+            if (ScheduleSharedGrowth()) return;
             if (!_isGrowing && _allocatedCount < _growTarget)
                 GrowAsync(_growPerFrame).Forget();
         }
@@ -33,6 +34,7 @@ namespace CodexFramework.Utils.Pools
             // they must not extend a startup warmup indefinitely.
             var target = _minimumCount;
             var lastAllocatedCount = _allocatedCount;
+            var lastSharedProgress = _asyncWorkQueue?.TotalCompleted ?? 0;
             var stagnantFrames = 0;
             var maxStagnantFrames = Math.Max(120, target);
             while (this && !_isDestroying && _allocatedCount < target)
@@ -43,9 +45,11 @@ namespace CodexFramework.Utils.Pools
                 StartGrowIfNeeded();
                 await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
 
-                if (_allocatedCount > lastAllocatedCount)
+                var sharedProgress = _asyncWorkQueue?.TotalCompleted ?? 0;
+                if (_allocatedCount > lastAllocatedCount || sharedProgress != lastSharedProgress)
                 {
                     lastAllocatedCount = _allocatedCount;
+                    lastSharedProgress = sharedProgress;
                     stagnantFrames = 0;
                     continue;
                 }
@@ -222,7 +226,7 @@ namespace CodexFramework.Utils.Pools
 
             try
             {
-                while (this && PrepareGrowBatch())
+                while (this && _asyncWorkQueue == null && PrepareGrowBatch())
                 {
                     var addedCount = 0;
                     while (addedCount < growPerFrame && TryGrowOne())

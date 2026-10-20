@@ -31,11 +31,14 @@ namespace CodexFramework.Utils.Pools
         private int _maxCount = -1;
         [SerializeField]
         private int _growPerFrame = 1;
+        [SerializeField, Tooltip("Higher values receive shared allocation and async checkout budget first.")]
+        private int _priority;
         
         public int InitialCount => _initialCount;
         public int PrewarmCount => _prewarmCount;
         public int MaxCount => _maxCount;
         public int GrowPerFrame => _growPerFrame;
+        public int Priority => _priority;
         
         [SerializeField]
         private ObjectPool _pool;

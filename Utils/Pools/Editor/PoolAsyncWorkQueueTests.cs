@@ -19,16 +19,18 @@ namespace CodexFramework.Utils.Pools.Editor
             _roots.Clear();
         }
 
-        private ObjectPool CreatePool(string name, int count = 4)
+        private ObjectPool CreatePool(string name, int count = 4, int priority = 0, bool allocate = true)
         {
             var root = new GameObject(name);
             _roots.Add(root);
             var prototype = new GameObject(name + " item").AddComponent<PoolItem>();
             prototype.transform.SetParent(root.transform);
+            typeof(PoolItem).GetField("_priority", System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic).SetValue(prototype, priority);
             var pool = root.AddComponent<ObjectPool>();
-            pool.Init(prototype, count, count);
             pool.UseAsyncBudget(_queue);
-            pool.AllocateAll();
+            pool.Init(prototype, count, count);
+            if (allocate) pool.AllocateAll();
 
             return pool;
         }
@@ -183,7 +185,7 @@ namespace CodexFramework.Utils.Pools.Editor
         }
 
         [Test]
-        public void BudgetedPoolDoesNotDelayUnrelatedPoolManagerRequests()
+        public void EveryManagerPoolUsesTheSameBudgetBeforeInitialGrowth()
         {
             var managerRoot = new GameObject("manager");
             _roots.Add(managerRoot);
@@ -196,15 +198,70 @@ namespace CodexFramework.Utils.Pools.Editor
             _roots.Add(b.gameObject);
             a.AllocateAll();
             b.AllocateAll();
-            a.UseAsyncBudget(_queue);
+            Assert.That(a.Allocated, Is.EqualTo(2));
             var budgeted = false;
             var unrelated = false;
             a.GetAsync(_ => budgeted = true);
             b.GetAsync(_ => unrelated = true);
             Assert.IsFalse(budgeted);
-            Assert.IsTrue(unrelated);
-            _queue.Process(100, 1, 10000);
+            Assert.IsFalse(unrelated);
+            manager.AsyncWork.Process(100, 1, 10000);
             Assert.IsTrue(budgeted);
+            Assert.IsFalse(unrelated);
+            manager.AsyncWork.Process(101, 1, 10000);
+            Assert.IsTrue(unrelated);
+        }
+
+        [Test]
+        public void HigherPriorityPrecedesCosmeticsAndEqualPrioritiesRemainFair()
+        {
+            var cosmetic = CreatePool("cosmetic", priority: -10);
+            var a = CreatePool("gameplay a", priority: 0);
+            var b = CreatePool("gameplay b", priority: 0);
+            var order = new List<string>();
+            cosmetic.GetAsync(_ => order.Add("cosmetic"));
+            for (var i = 0; i < 2; i++)
+            {
+                a.GetAsync(_ => order.Add("a"));
+                b.GetAsync(_ => order.Add("b"));
+            }
+            _queue.Process(100, 3, 10000);
+            CollectionAssert.AreEqual(new[] { "a", "b", "a" }, order);
+            _queue.Process(101, 3, 10000);
+            CollectionAssert.AreEqual(new[] { "a", "b", "a", "b", "cosmetic" }, order);
+        }
+
+        [Test]
+        public void GrowthAndCheckoutsShareOneBudgetWithoutAnImmediateFirstBatch()
+        {
+            var a = CreatePool("a", allocate: false);
+            var b = CreatePool("b", allocate: false);
+            Assert.That(a.Allocated + b.Allocated, Is.EqualTo(2), "Only the scene prototypes exist before pumping.");
+            var calls = 0;
+            a.GetAsync(_ => calls++);
+            b.GetAsync(_ => calls++);
+            _queue.Process(100, 3, 10000);
+            Assert.That(calls, Is.EqualTo(2));
+            Assert.That(a.Allocated + b.Allocated, Is.EqualTo(3));
+            _queue.Process(100, 3, 10000);
+            Assert.That(a.Allocated + b.Allocated, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void PerPoolGrowthLimitDoesNotBlockLowerPriorityPools()
+        {
+            var high = CreatePool("high", priority: 100, allocate: false);
+            var low = CreatePool("low", priority: -10, allocate: false);
+            _queue.Process(100, 8, 10000);
+            Assert.That(high.Allocated, Is.EqualTo(2));
+            Assert.That(low.Allocated, Is.EqualTo(2));
+            Assert.That(_queue.CompletedThisFrame, Is.EqualTo(2));
+            _queue.Process(100, 8, 10000);
+            Assert.That(high.Allocated, Is.EqualTo(2));
+            Assert.That(low.Allocated, Is.EqualTo(2));
+            _queue.Process(101, 8, 10000);
+            Assert.That(high.Allocated, Is.EqualTo(3));
+            Assert.That(low.Allocated, Is.EqualTo(3));
         }
     }
 }

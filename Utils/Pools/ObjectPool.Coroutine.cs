@@ -12,6 +12,7 @@ namespace CodexFramework.Utils.Pools
 
         partial void StartGrowIfNeeded()
         {
+            if (ScheduleSharedGrowth()) return;
             if (!_isGrowing && _allocatedCount < _growTarget)
                 StartCoroutine(GrowRoutine(_growPerFrame));
         }
@@ -106,7 +107,7 @@ namespace CodexFramework.Utils.Pools
 
             try
             {
-                while (this && PrepareGrowBatch())
+                while (this && _asyncWorkQueue == null && PrepareGrowBatch())
                 {
                     var addedCount = 0;
                     while (addedCount < growPerFrame && TryGrowOne())

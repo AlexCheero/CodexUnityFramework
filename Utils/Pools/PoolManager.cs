@@ -6,6 +6,18 @@ namespace CodexFramework.Utils.Pools
     public class PoolManager : Singleton<PoolManager>
     {
         private readonly Dictionary<PoolItem, ObjectPool> _poolsDict = new();
+        public PoolAsyncWorkQueue AsyncWork { get; } = new();
+        private int _maxOperationsPerFrame = 8;
+        private double _maxMillisecondsPerFrame = 2;
+
+        public void ConfigureAsyncBudget(int maxOperations, double maxMilliseconds)
+        {
+            _maxOperationsPerFrame = maxOperations;
+            _maxMillisecondsPerFrame = maxMilliseconds;
+        }
+
+        // Runs while gameplay ECS is paused too, so loading can finish its prewarm.
+        private void Update() => AsyncWork.Process(Time.frameCount, _maxOperationsPerFrame, _maxMillisecondsPerFrame);
 
         protected override void Init()
         {
@@ -39,6 +51,8 @@ namespace CodexFramework.Utils.Pools
             if (initialCount > 0)
             {
                 pool = new GameObject(prototype.name + "Pool").AddComponent<ObjectPool>();
+                pool.transform.SetParent(transform, false);
+                pool.UseAsyncBudget(AsyncWork);
                 pool.Init(prototype, initialCount, maxCount);
                 _poolsDict.Add(prototype, pool);
             }
