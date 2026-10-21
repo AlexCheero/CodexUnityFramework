@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 namespace CodexFramework.Utils.Pools
@@ -9,6 +10,14 @@ namespace CodexFramework.Utils.Pools
         public PoolAsyncWorkQueue AsyncWork { get; } = new();
         private int _maxOperationsPerFrame = 8;
         private double _maxMillisecondsPerFrame = 2;
+        private readonly CancellationTokenSource _transientRequests = new();
+        public CancellationToken TransientRequestsToken => _transientRequests.Token;
+
+        public void CancelTransientRequests()
+        {
+            _transientRequests.Cancel();
+            foreach (var pool in _poolsDict.Values) pool.PruneCanceledAsyncWaiters();
+        }
 
         public void ConfigureAsyncBudget(int maxOperations, double maxMilliseconds)
         {
@@ -64,14 +73,19 @@ namespace CodexFramework.Utils.Pools
         [SerializeField]
         private bool _logAllocated;
 
-        void OnDestroy()
-        {
-            if (!_logAllocated)
-                return;
-
-            foreach (var pool in _poolsDict.Values)
-                Debug.Log($"{pool.Prototype.name}'s pool allocated: {pool.Allocated}");
-        }
 #endif
+        private void OnDestroy()
+        {
+            CancelTransientRequests();
+            foreach (var pool in _poolsDict.Values)
+            {
+#if UNITY_EDITOR
+                if (_logAllocated && pool) Debug.Log($"{pool.Prototype.name}'s pool allocated: {pool.Allocated}");
+#endif
+                pool.CancelPendingRequests();
+            }
+            _transientRequests.Dispose();
+            ClearSingletonInstance();
+        }
     }
 }

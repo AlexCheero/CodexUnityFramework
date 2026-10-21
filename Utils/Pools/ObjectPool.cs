@@ -74,6 +74,20 @@ namespace CodexFramework.Utils.Pools
         public IReadOnlyList<PoolItem> Items => _items ?? Array.Empty<PoolItem>();
         public int FirstAvailable => _firstAvailable;
 
+        /// <summary>Short-lived visuals are dropped before checkout when stale or when their queue is full.</summary>
+        public void GetTransientAsync<TState>(Vector3 position, Quaternion rotation, TState state,
+            Action<PoolItem, TState> onReady, CancellationToken cancellationToken,
+            double maxDelaySeconds = .1, int maxPending = 16)
+        {
+            PruneCanceledAsyncWaiters();
+            RefreshGrowTarget();
+            if (cancellationToken.IsCancellationRequested) return;
+            if (_pendingAsyncCount >= maxPending) { onReady(null, state); return; }
+            EnqueueAsyncWaiter(item => onReady(item, state), true, cancellationToken,
+                placement: new CheckoutPlacement(position, rotation),
+                expiresAt: Time.realtimeSinceStartupAsDouble + maxDelaySeconds);
+        }
+
         partial void BeginInitialGrow();
         partial void StartGrowIfNeeded();
 
@@ -334,11 +348,12 @@ namespace CodexFramework.Utils.Pools
             bool forceGrow,
             CancellationToken cancellationToken = default,
             Action onCanceled = null,
-            CheckoutPlacement placement = default)
+            CheckoutPlacement placement = default, double expiresAt = double.PositiveInfinity)
         {
             if (onReady == null)
                 throw new ArgumentNullException(nameof(onReady));
-            if (cancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested ||
+                !double.IsPositiveInfinity(expiresAt) && Time.realtimeSinceStartupAsDouble >= expiresAt)
             {
                 InvokeCanceled(onCanceled);
                 return;
@@ -352,7 +367,7 @@ namespace CodexFramework.Utils.Pools
             if (_asyncWorkQueue != null)
             {
                 // Budgeted pools admit activation, reset hooks and the callback together.
-                var waiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, forceGrow, placement);
+                var waiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, forceGrow, placement, expiresAt);
                 _asyncWaiters.Enqueue(waiter);
                 _pendingAsyncCount++;
                 if (forceGrow) _pendingGrowthCount++;
@@ -386,7 +401,7 @@ namespace CodexFramework.Utils.Pools
                 return;
             }
 
-            var queuedWaiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, placement: placement);
+            var queuedWaiter = new AsyncWaiter(onReady, onCanceled, cancellationToken, placement: placement, expiresAt: expiresAt);
             _asyncWaiters.Enqueue(queuedWaiter);
             _pendingAsyncCount++;
             _pendingGrowthCount++;
@@ -518,7 +533,7 @@ namespace CodexFramework.Utils.Pools
             }
         }
 
-        private void PruneCanceledAsyncWaiters()
+        internal void PruneCanceledAsyncWaiters()
         {
             if (_cancellableAsyncCount == 0)
                 return;
@@ -610,7 +625,7 @@ namespace CodexFramework.Utils.Pools
             try
             {
                 item.gameObject.SetActive(false);
-                item.transform.parent = transform;
+                item.transform.SetParent(transform, false);
                 item.transform.position = Vector3.zero;
                 item.transform.rotation = Quaternion.identity;
                 item.InvokeOnReturnCallbacks();
@@ -845,11 +860,13 @@ namespace CodexFramework.Utils.Pools
             private readonly Action<PoolItem> _onReady;
             private readonly Action _onCanceled;
             private readonly CancellationToken _cancellationToken;
+            private readonly double _expiresAt;
             private bool _isCompleted;
 
             public bool IsCancellationRequested =>
-                !_isCompleted && _cancellationToken.IsCancellationRequested;
-            public bool CanBeCanceled => _cancellationToken.CanBeCanceled;
+                !_isCompleted && (_cancellationToken.IsCancellationRequested ||
+                    !double.IsPositiveInfinity(_expiresAt) && Time.realtimeSinceStartupAsDouble >= _expiresAt);
+            public bool CanBeCanceled => _cancellationToken.CanBeCanceled || !double.IsPositiveInfinity(_expiresAt);
             public bool ForceGrow { get; }
             public CheckoutPlacement Placement { get; }
 
@@ -857,20 +874,21 @@ namespace CodexFramework.Utils.Pools
                 Action<PoolItem> onReady,
                 Action onCanceled,
                 CancellationToken cancellationToken, bool forceGrow = true,
-                CheckoutPlacement placement = default)
+                CheckoutPlacement placement = default, double expiresAt = double.PositiveInfinity)
             {
                 ForceGrow = forceGrow;
                 Placement = placement;
                 _onReady = onReady;
                 _onCanceled = onCanceled;
                 _cancellationToken = cancellationToken;
+                _expiresAt = expiresAt;
             }
 
             public bool TryComplete(PoolItem item)
             {
                 if (_isCompleted)
                     return false;
-                if (_cancellationToken.IsCancellationRequested)
+                if (IsCancellationRequested)
                 {
                     Cancel();
                     return false;

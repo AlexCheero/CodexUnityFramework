@@ -36,6 +36,40 @@ namespace CodexFramework.Utils.Pools.Editor
         }
 
         [Test]
+        public void TransientQueueIsBoundedAndExpiredRequestsNeverActivateObjects()
+        {
+            var pool = CreatePool("transient");
+            var delivered = 0; var rejected = 0;
+            Action<PoolItem, int> ready = (item, _) => { if (item) delivered++; else rejected++; };
+            for (var i = 0; i < 8; i++)
+                pool.GetTransientAsync(Vector3.zero, Quaternion.identity, i, ready, CancellationToken.None,
+                    maxDelaySeconds: .02, maxPending: 2);
+            Assert.AreEqual(2, pool.PendingAsyncCount);
+            Assert.AreEqual(6, rejected);
+            Thread.Sleep(40);
+            _queue.Process(100, 8, 10000);
+            Assert.AreEqual(0, delivered);
+            Assert.AreEqual(0, pool.PendingAsyncCount);
+            Assert.AreEqual(0, pool.ActiveCount);
+        }
+
+        [Test]
+        public void TransientCancellationDropsRequestsButNormalCheckoutStillCompletes()
+        {
+            var pool = CreatePool("cancel transient");
+            using var cancellation = new CancellationTokenSource();
+            pool.GetTransientAsync(Vector3.zero, Quaternion.identity, 0,
+                (_, _) => Assert.Fail("Canceled effect was delivered"), cancellation.Token, maxDelaySeconds: 60);
+            var completed = false;
+            pool.GetAsync(_ => completed = true);
+            cancellation.Cancel();
+            _queue.Process(100, 4, 10000);
+            Assert.IsTrue(completed);
+            Assert.AreEqual(0, pool.PendingAsyncCount);
+            Assert.AreEqual(1, pool.ActiveCount);
+        }
+
+        [Test]
         public void SharedCountBudgetIsFairAcrossPoolsAndCannotBeSpentTwiceInOneFrame()
         {
             var a = CreatePool("a");

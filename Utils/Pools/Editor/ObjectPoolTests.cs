@@ -1042,6 +1042,10 @@ namespace CodexFramework.Utils.Pools.Editor
 
             Assert.AreEqual(1, invocationCounts[0]);
             Assert.IsFalse(receivedNull[0]);
+            // ObjectPool is not ExecuteAlways: EditMode does not dispatch its destruction callback.
+            if (!Application.isPlaying)
+                typeof(ObjectPool).GetMethod("OnDestroy", System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic).Invoke(pool, null);
             Object.DestroyImmediate(_poolRoot);
             _poolRoot = null;
 
