@@ -20,4 +20,11 @@ namespace CodexFramework.Saves
     {
         T FromJson(string json);
     }
+
+    // Optional game-owned conversion. Implementations must reject unsupported data without
+    // side effects; storage commits only after every local/cloud candidate loads successfully.
+    public interface ISaveDataMigration
+    {
+        string Migrate(string json);
+    }
 }
