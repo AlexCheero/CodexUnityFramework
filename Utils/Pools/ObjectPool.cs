@@ -18,6 +18,7 @@ namespace CodexFramework.Utils.Pools
         private int _firstAvailable = 0;
         private int _allocatedCount;
         private int _minimumCount;
+        private int _prewarmMinimum;
         private int _growthBatchSize;
         private float _growthActiveThreshold;
         private bool _isGrowing;
@@ -32,6 +33,16 @@ namespace CodexFramework.Utils.Pools
         private int _budgetGrowthCount;
         private int _cancellableAsyncCount;
         private readonly Queue<AsyncWaiter> _asyncWaiters = new();
+
+        public event Action<int> PeakActiveCountChanged;
+        public int PeakActiveCount { get; private set; }
+
+        public void PrewarmTo(int count)
+        {
+            _prewarmMinimum = Math.Max(_prewarmMinimum, _maxCount > 0 ? Math.Min(count, _maxCount) : count);
+            _minimumCount = Math.Max(_minimumCount, _prewarmMinimum);
+            RequestGrow(_minimumCount);
+        }
 
         /// <summary>Assign before Init to budget initial allocation as well as async checkouts.</summary>
         public void UseAsyncBudget(PoolAsyncWorkQueue queue)
@@ -113,6 +124,11 @@ namespace CodexFramework.Utils.Pools
                 _firstAvailable++;
                 try
                 {
+                    if (_firstAvailable > PeakActiveCount)
+                    {
+                        PeakActiveCount = _firstAvailable;
+                        PeakActiveCountChanged?.Invoke(PeakActiveCount);
+                    }
                     // OnEnable and reset callbacks must observe the requested pose.
                     placement.Apply(item);
                     item.gameObject.SetActive(true);
@@ -151,6 +167,8 @@ namespace CodexFramework.Utils.Pools
                 _growPerFrame = 1;
             }
             _minimumCount = _maxCount > 0 ? _maxCount : initialCount;
+            _prewarmMinimum = 0;
+            PeakActiveCount = 0;
             _growthBatchSize = 0;
             _growthActiveThreshold = 0f;
             _firstAvailable = 0;
@@ -253,7 +271,7 @@ namespace CodexFramework.Utils.Pools
             RepairDestroyedItemsIfNeeded();
             // Replace authored startup demand, preserving anything already allocated.
             // In particular, a prefab's larger initial count must not keep growing after warmup.
-            _minimumCount = Math.Max(_allocatedCount, batchSize);
+            _minimumCount = Math.Max(_prewarmMinimum, Math.Max(_allocatedCount, batchSize));
             if (_maxCount > 0)
                 _minimumCount = Math.Min(_minimumCount, _maxCount);
             _growthBatchSize = batchSize;

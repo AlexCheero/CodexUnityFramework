@@ -6,6 +6,8 @@ namespace CodexFramework.Utils.Pools
 {
     public class PoolManager : Singleton<PoolManager>
     {
+        public static event System.Action<ObjectPool> PoolCreated;
+        public IEnumerable<ObjectPool> Pools => _poolsDict.Values;
         private readonly Dictionary<PoolItem, ObjectPool> _poolsDict = new();
         public PoolAsyncWorkQueue AsyncWork { get; } = new();
         private int _maxOperationsPerFrame = 8;
@@ -64,6 +66,7 @@ namespace CodexFramework.Utils.Pools
                 pool.UseAsyncBudget(AsyncWork);
                 pool.Init(prototype, initialCount, maxCount);
                 _poolsDict.Add(prototype, pool);
+                PoolCreated?.Invoke(pool);
             }
 
             return pool;

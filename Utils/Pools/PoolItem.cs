@@ -23,6 +23,10 @@ namespace CodexFramework.Utils.Pools
     
     public class PoolItem : MonoBehaviour
     {
+        [SerializeField, HideInInspector]
+        private string _adaptivePoolId;
+        public string AdaptivePoolId => _adaptivePoolId;
+
         [SerializeField]
         private int _initialCount = 2;
         [SerializeField, Min(1)]
