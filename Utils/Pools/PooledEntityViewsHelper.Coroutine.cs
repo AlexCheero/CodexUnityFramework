@@ -21,25 +21,6 @@ namespace CodexFramework.Utils.Pools
             Quaternion rotation) =>
             PoolManager.Instance.GetByPrototype(prototype.Item).GetAsync(position, rotation, world, OnInitPooledEntityViewAction);
 
-        // The groupMask overloads place the entity in that allocation group (see EntityView.InitAsEntity).
-        public static void GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world, in BitMask groupMask) =>
-            GetPooledEntityViewAsync<object>(prototype, world, null, null, in groupMask);
-
-        public static void GetPooledEntityViewAsync(
-            PooledEntityView prototype,
-            EcsWorld world,
-            Vector3 position,
-            in BitMask groupMask) =>
-            GetPooledEntityViewAsync<object>(prototype, world, position, null, null, in groupMask);
-
-        public static void GetPooledEntityViewAsync(
-            PooledEntityView prototype,
-            EcsWorld world,
-            Vector3 position,
-            Quaternion rotation,
-            in BitMask groupMask) =>
-            GetPooledEntityViewAsync<object>(prototype, world, position, rotation, null, null, in groupMask);
-
         public static void GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world, Action<EntityView> onReady) =>
             GetPooledEntityViewAsync(prototype, world, onReady, OnActionEntityViewReadyAction);
 

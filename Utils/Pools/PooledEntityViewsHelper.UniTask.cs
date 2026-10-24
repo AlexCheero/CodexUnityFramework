@@ -37,40 +37,6 @@ namespace CodexFramework.Utils.Pools
             return InitView(item, world);
         }
 
-        // The groupMask overloads place the entity in that allocation group (see EntityView.InitAsEntity).
-        public static async UniTask<EntityView> GetPooledEntityViewAsync(
-            PooledEntityView prototype,
-            EcsWorld world,
-            BitMask groupMask)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var item = await pool.GetAsync();
-            return InitView(item, world, in groupMask);
-        }
-
-        public static async UniTask<EntityView> GetPooledEntityViewAsync(
-            PooledEntityView prototype,
-            EcsWorld world,
-            Vector3 position,
-            BitMask groupMask)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var item = await pool.GetAsync(position);
-            return InitView(item, world, in groupMask);
-        }
-
-        public static async UniTask<EntityView> GetPooledEntityViewAsync(
-            PooledEntityView prototype,
-            EcsWorld world,
-            Vector3 position,
-            Quaternion rotation,
-            BitMask groupMask)
-        {
-            var pool = PoolManager.Instance.GetByPrototype(prototype.Item);
-            var item = await pool.GetAsync(position, rotation);
-            return InitView(item, world, in groupMask);
-        }
-
         public static void GetPooledEntityViewAsync(PooledEntityView prototype, EcsWorld world, Action<EntityView> onReady) =>
             GetPooledEntityViewAsyncInternal(prototype, world, onReady).Forget();
 
