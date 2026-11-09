@@ -18,7 +18,9 @@ namespace CodexFramework.Utils
                 var instance = FindFirstObjectByType<T>(FindObjectsInactive.Include);
                 if (instance == null)
                     instance = new GameObject(typeof(T).Name).AddComponent<T>();
-                InitInstance(instance);
+                // AddComponent runs Awake, which already initialized the new instance.
+                if (_instance != instance)
+                    InitInstance(instance);
                 return _instance;
             }
         }
